@@ -1,0 +1,5 @@
+# Runtime dependencies for the Web viewer (scripts/serve.sh).
+numpy>=1.26
+pymatgen>=2024.5
+spglib>=2.4
+pillow>=10.0

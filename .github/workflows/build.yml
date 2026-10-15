@@ -1,0 +1,41 @@
+# Build and smoke-test both platforms; save artifacts without publishing a Release.
+name: build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: packaging/build_linux.sh
+      - name: Smoke test
+        run: build/venv/bin/python packaging/smoke_test.py dist/symmetry-viewer/symmetry-viewer
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: dist/symmetry-viewer-linux-x86_64.tar.gz
+          if-no-files-found: error
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        shell: pwsh
+        run: ./packaging/build_windows.ps1
+      - name: Smoke test
+        shell: pwsh
+        run: build\venv\Scripts\python.exe packaging\smoke_test.py dist\symmetry-viewer\symmetry-viewer.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/symmetry-viewer-windows-x64.zip
+          if-no-files-found: error
