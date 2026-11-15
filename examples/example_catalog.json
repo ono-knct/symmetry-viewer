@@ -16,7 +16,25 @@
         "mapping": 0,
         "point_group": 0
       },
-      "beyond_quiz_vocabulary": false
+      "beyond_quiz_vocabulary": false,
+      "quiz_availability": {
+        "operation": {
+          "normal": true,
+          "hard": true
+        },
+        "composition": {
+          "normal": true,
+          "hard": true
+        },
+        "mapping": {
+          "normal": true,
+          "hard": true
+        },
+        "point_group": {
+          "normal": false,
+          "hard": true
+        }
+      }
     },
     {
       "kind": "crystal",
@@ -34,7 +52,25 @@
         "mapping": 0,
         "point_group": 1
       },
-      "beyond_quiz_vocabulary": false
+      "beyond_quiz_vocabulary": false,
+      "quiz_availability": {
+        "operation": {
+          "normal": true,
+          "hard": true
+        },
+        "composition": {
+          "normal": true,
+          "hard": true
+        },
+        "mapping": {
+          "normal": true,
+          "hard": true
+        },
+        "point_group": {
+          "normal": true,
+          "hard": false
+        }
+      }
     },
     {
       "kind": "crystal",
@@ -52,7 +88,25 @@
         "mapping": 0,
         "point_group": 1
       },
-      "beyond_quiz_vocabulary": false
+      "beyond_quiz_vocabulary": false,
+      "quiz_availability": {
+        "operation": {
+          "normal": true,
+          "hard": false
+        },
+        "composition": {
+          "normal": true,
+          "hard": true
+        },
+        "mapping": {
+          "normal": false,
+          "hard": false
+        },
+        "point_group": {
+          "normal": true,
+          "hard": false
+        }
+      }
     },
     {
       "kind": "crystal",
@@ -70,7 +124,25 @@
         "mapping": 0,
         "point_group": 0
       },
-      "beyond_quiz_vocabulary": false
+      "beyond_quiz_vocabulary": false,
+      "quiz_availability": {
+        "operation": {
+          "normal": true,
+          "hard": true
+        },
+        "composition": {
+          "normal": true,
+          "hard": true
+        },
+        "mapping": {
+          "normal": true,
+          "hard": true
+        },
+        "point_group": {
+          "normal": false,
+          "hard": true
+        }
+      }
     },
     {
       "kind": "crystal",
@@ -88,7 +160,25 @@
         "mapping": 0,
         "point_group": 1
       },
-      "beyond_quiz_vocabulary": false
+      "beyond_quiz_vocabulary": false,
+      "quiz_availability": {
+        "operation": {
+          "normal": true,
+          "hard": true
+        },
+        "composition": {
+          "normal": true,
+          "hard": true
+        },
+        "mapping": {
+          "normal": true,
+          "hard": true
+        },
+        "point_group": {
+          "normal": true,
+          "hard": false
+        }
+      }
     },
     {
       "kind": "crystal",
@@ -106,7 +196,25 @@
         "mapping": 0,
         "point_group": 0
       },
-      "beyond_quiz_vocabulary": false
+      "beyond_quiz_vocabulary": false,
+      "quiz_availability": {
+        "operation": {
+          "normal": true,
+          "hard": true
+        },
+        "composition": {
+          "normal": true,
+          "hard": true
+        },
+        "mapping": {
+          "normal": true,
+          "hard": true
+        },
+        "point_group": {
+          "normal": false,
+          "hard": true
+        }
+      }
     },
     {
       "kind": "crystal",
@@ -124,7 +232,25 @@
         "mapping": 0,
         "point_group": 1
       },
-      "beyond_quiz_vocabulary": false
+      "beyond_quiz_vocabulary": false,
+      "quiz_availability": {
+        "operation": {
+          "normal": true,
+          "hard": true
+        },
+        "composition": {
+          "normal": true,
+          "hard": true
+        },
+        "mapping": {
+          "normal": true,
+          "hard": true
+        },
+        "point_group": {
+          "normal": true,
+          "hard": false
+        }
+      }
     },
     {
       "kind": "crystal",
@@ -142,7 +268,25 @@
         "mapping": 0,
         "point_group": 1
       },
-      "beyond_quiz_vocabulary": false
+      "beyond_quiz_vocabulary": false,
+      "quiz_availability": {
+        "operation": {
+          "normal": true,
+          "hard": true
+        },
+        "composition": {
+          "normal": true,
+          "hard": true
+        },
+        "mapping": {
+          "normal": true,
+          "hard": true
+        },
+        "point_group": {
+          "normal": true,
+          "hard": false
+        }
+      }
     },
     {
       "kind": "crystal",
@@ -160,7 +304,25 @@
         "mapping": 0,
         "point_group": 1
       },
-      "beyond_quiz_vocabulary": false
+      "beyond_quiz_vocabulary": false,
+      "quiz_availability": {
+        "operation": {
+          "normal": true,
+          "hard": true
+        },
+        "composition": {
+          "normal": true,
+          "hard": true
+        },
+        "mapping": {
+          "normal": true,
+          "hard": true
+        },
+        "point_group": {
+          "normal": true,
+          "hard": false
+        }
+      }
     },
     {
       "kind": "crystal",
@@ -178,7 +340,25 @@
         "mapping": 0,
         "point_group": 0
       },
-      "beyond_quiz_vocabulary": false
+      "beyond_quiz_vocabulary": false,
+      "quiz_availability": {
+        "operation": {
+          "normal": true,
+          "hard": true
+        },
+        "composition": {
+          "normal": true,
+          "hard": true
+        },
+        "mapping": {
+          "normal": true,
+          "hard": true
+        },
+        "point_group": {
+          "normal": false,
+          "hard": true
+        }
+      }
     },
     {
       "kind": "crystal",
@@ -196,7 +376,25 @@
         "mapping": 0,
         "point_group": 1
       },
-      "beyond_quiz_vocabulary": false
+      "beyond_quiz_vocabulary": false,
+      "quiz_availability": {
+        "operation": {
+          "normal": true,
+          "hard": false
+        },
+        "composition": {
+          "normal": true,
+          "hard": true
+        },
+        "mapping": {
+          "normal": true,
+          "hard": true
+        },
+        "point_group": {
+          "normal": true,
+          "hard": false
+        }
+      }
     },
     {
       "kind": "crystal",
@@ -214,7 +412,25 @@
         "mapping": 0,
         "point_group": 0
       },
-      "beyond_quiz_vocabulary": false
+      "beyond_quiz_vocabulary": false,
+      "quiz_availability": {
+        "operation": {
+          "normal": true,
+          "hard": true
+        },
+        "composition": {
+          "normal": true,
+          "hard": true
+        },
+        "mapping": {
+          "normal": true,
+          "hard": true
+        },
+        "point_group": {
+          "normal": false,
+          "hard": true
+        }
+      }
     },
     {
       "kind": "crystal",
@@ -232,7 +448,25 @@
         "mapping": 0,
         "point_group": 0
       },
-      "beyond_quiz_vocabulary": false
+      "beyond_quiz_vocabulary": false,
+      "quiz_availability": {
+        "operation": {
+          "normal": true,
+          "hard": true
+        },
+        "composition": {
+          "normal": true,
+          "hard": true
+        },
+        "mapping": {
+          "normal": true,
+          "hard": true
+        },
+        "point_group": {
+          "normal": false,
+          "hard": true
+        }
+      }
     },
     {
       "kind": "crystal",
@@ -250,7 +484,25 @@
         "mapping": 0,
         "point_group": 0
       },
-      "beyond_quiz_vocabulary": false
+      "beyond_quiz_vocabulary": false,
+      "quiz_availability": {
+        "operation": {
+          "normal": true,
+          "hard": true
+        },
+        "composition": {
+          "normal": true,
+          "hard": true
+        },
+        "mapping": {
+          "normal": true,
+          "hard": true
+        },
+        "point_group": {
+          "normal": false,
+          "hard": true
+        }
+      }
     },
     {
       "kind": "crystal",
@@ -268,7 +520,25 @@
         "mapping": 0,
         "point_group": 1
       },
-      "beyond_quiz_vocabulary": false
+      "beyond_quiz_vocabulary": false,
+      "quiz_availability": {
+        "operation": {
+          "normal": true,
+          "hard": true
+        },
+        "composition": {
+          "normal": true,
+          "hard": true
+        },
+        "mapping": {
+          "normal": true,
+          "hard": true
+        },
+        "point_group": {
+          "normal": true,
+          "hard": false
+        }
+      }
     },
     {
       "kind": "crystal",
@@ -286,7 +556,25 @@
         "mapping": 0,
         "point_group": 0
       },
-      "beyond_quiz_vocabulary": false
+      "beyond_quiz_vocabulary": false,
+      "quiz_availability": {
+        "operation": {
+          "normal": true,
+          "hard": true
+        },
+        "composition": {
+          "normal": true,
+          "hard": true
+        },
+        "mapping": {
+          "normal": true,
+          "hard": true
+        },
+        "point_group": {
+          "normal": false,
+          "hard": true
+        }
+      }
     }
   ],
   "molecule": [
@@ -306,7 +594,25 @@
         "mapping": 16,
         "point_group": 1
       },
-      "beyond_quiz_vocabulary": false
+      "beyond_quiz_vocabulary": false,
+      "quiz_availability": {
+        "operation": {
+          "normal": true,
+          "hard": false
+        },
+        "composition": {
+          "normal": true,
+          "hard": true
+        },
+        "mapping": {
+          "normal": true,
+          "hard": false
+        },
+        "point_group": {
+          "normal": true,
+          "hard": false
+        }
+      }
     },
     {
       "kind": "molecule",
@@ -324,7 +630,25 @@
         "mapping": 12,
         "point_group": 1
       },
-      "beyond_quiz_vocabulary": false
+      "beyond_quiz_vocabulary": false,
+      "quiz_availability": {
+        "operation": {
+          "normal": true,
+          "hard": false
+        },
+        "composition": {
+          "normal": true,
+          "hard": true
+        },
+        "mapping": {
+          "normal": true,
+          "hard": false
+        },
+        "point_group": {
+          "normal": true,
+          "hard": false
+        }
+      }
     },
     {
       "kind": "molecule",
@@ -342,7 +666,25 @@
         "mapping": 6,
         "point_group": 1
       },
-      "beyond_quiz_vocabulary": false
+      "beyond_quiz_vocabulary": false,
+      "quiz_availability": {
+        "operation": {
+          "normal": true,
+          "hard": false
+        },
+        "composition": {
+          "normal": true,
+          "hard": true
+        },
+        "mapping": {
+          "normal": true,
+          "hard": false
+        },
+        "point_group": {
+          "normal": true,
+          "hard": false
+        }
+      }
     },
     {
       "kind": "molecule",
@@ -360,7 +702,25 @@
         "mapping": 42,
         "point_group": 1
       },
-      "beyond_quiz_vocabulary": false
+      "beyond_quiz_vocabulary": false,
+      "quiz_availability": {
+        "operation": {
+          "normal": true,
+          "hard": false
+        },
+        "composition": {
+          "normal": true,
+          "hard": true
+        },
+        "mapping": {
+          "normal": true,
+          "hard": false
+        },
+        "point_group": {
+          "normal": true,
+          "hard": false
+        }
+      }
     },
     {
       "kind": "molecule",
@@ -378,7 +738,25 @@
         "mapping": 24,
         "point_group": 1
       },
-      "beyond_quiz_vocabulary": false
+      "beyond_quiz_vocabulary": false,
+      "quiz_availability": {
+        "operation": {
+          "normal": true,
+          "hard": false
+        },
+        "composition": {
+          "normal": true,
+          "hard": true
+        },
+        "mapping": {
+          "normal": true,
+          "hard": false
+        },
+        "point_group": {
+          "normal": true,
+          "hard": false
+        }
+      }
     },
     {
       "kind": "molecule",
@@ -396,7 +774,25 @@
         "mapping": 16,
         "point_group": 1
       },
-      "beyond_quiz_vocabulary": false
+      "beyond_quiz_vocabulary": false,
+      "quiz_availability": {
+        "operation": {
+          "normal": true,
+          "hard": false
+        },
+        "composition": {
+          "normal": true,
+          "hard": true
+        },
+        "mapping": {
+          "normal": true,
+          "hard": false
+        },
+        "point_group": {
+          "normal": true,
+          "hard": false
+        }
+      }
     },
     {
       "kind": "molecule",
@@ -414,7 +810,25 @@
         "mapping": 0,
         "point_group": 1
       },
-      "beyond_quiz_vocabulary": false
+      "beyond_quiz_vocabulary": false,
+      "quiz_availability": {
+        "operation": {
+          "normal": false,
+          "hard": false
+        },
+        "composition": {
+          "normal": false,
+          "hard": true
+        },
+        "mapping": {
+          "normal": false,
+          "hard": false
+        },
+        "point_group": {
+          "normal": true,
+          "hard": false
+        }
+      }
     },
     {
       "kind": "molecule",
@@ -432,7 +846,25 @@
         "mapping": 4,
         "point_group": 1
       },
-      "beyond_quiz_vocabulary": false
+      "beyond_quiz_vocabulary": false,
+      "quiz_availability": {
+        "operation": {
+          "normal": true,
+          "hard": false
+        },
+        "composition": {
+          "normal": true,
+          "hard": true
+        },
+        "mapping": {
+          "normal": true,
+          "hard": false
+        },
+        "point_group": {
+          "normal": true,
+          "hard": false
+        }
+      }
     },
     {
       "kind": "molecule",
@@ -450,7 +882,25 @@
         "mapping": 2,
         "point_group": 1
       },
-      "beyond_quiz_vocabulary": false
+      "beyond_quiz_vocabulary": false,
+      "quiz_availability": {
+        "operation": {
+          "normal": true,
+          "hard": false
+        },
+        "composition": {
+          "normal": true,
+          "hard": true
+        },
+        "mapping": {
+          "normal": true,
+          "hard": false
+        },
+        "point_group": {
+          "normal": true,
+          "hard": false
+        }
+      }
     },
     {
       "kind": "molecule",
@@ -468,7 +918,25 @@
         "mapping": 30,
         "point_group": 1
       },
-      "beyond_quiz_vocabulary": false
+      "beyond_quiz_vocabulary": false,
+      "quiz_availability": {
+        "operation": {
+          "normal": true,
+          "hard": false
+        },
+        "composition": {
+          "normal": true,
+          "hard": true
+        },
+        "mapping": {
+          "normal": true,
+          "hard": false
+        },
+        "point_group": {
+          "normal": true,
+          "hard": false
+        }
+      }
     },
     {
       "kind": "molecule",
@@ -486,7 +954,25 @@
         "mapping": 18,
         "point_group": 1
       },
-      "beyond_quiz_vocabulary": false
+      "beyond_quiz_vocabulary": false,
+      "quiz_availability": {
+        "operation": {
+          "normal": true,
+          "hard": false
+        },
+        "composition": {
+          "normal": true,
+          "hard": true
+        },
+        "mapping": {
+          "normal": true,
+          "hard": false
+        },
+        "point_group": {
+          "normal": true,
+          "hard": false
+        }
+      }
     },
     {
       "kind": "molecule",
@@ -504,7 +990,25 @@
         "mapping": 0,
         "point_group": 1
       },
-      "beyond_quiz_vocabulary": false
+      "beyond_quiz_vocabulary": false,
+      "quiz_availability": {
+        "operation": {
+          "normal": false,
+          "hard": false
+        },
+        "composition": {
+          "normal": false,
+          "hard": true
+        },
+        "mapping": {
+          "normal": false,
+          "hard": false
+        },
+        "point_group": {
+          "normal": true,
+          "hard": false
+        }
+      }
     },
     {
       "kind": "molecule",
@@ -522,7 +1026,25 @@
         "mapping": 4,
         "point_group": 1
       },
-      "beyond_quiz_vocabulary": false
+      "beyond_quiz_vocabulary": false,
+      "quiz_availability": {
+        "operation": {
+          "normal": true,
+          "hard": false
+        },
+        "composition": {
+          "normal": true,
+          "hard": true
+        },
+        "mapping": {
+          "normal": true,
+          "hard": false
+        },
+        "point_group": {
+          "normal": true,
+          "hard": false
+        }
+      }
     },
     {
       "kind": "molecule",
@@ -540,7 +1062,25 @@
         "mapping": 24,
         "point_group": 1
       },
-      "beyond_quiz_vocabulary": false
+      "beyond_quiz_vocabulary": false,
+      "quiz_availability": {
+        "operation": {
+          "normal": true,
+          "hard": false
+        },
+        "composition": {
+          "normal": true,
+          "hard": true
+        },
+        "mapping": {
+          "normal": true,
+          "hard": false
+        },
+        "point_group": {
+          "normal": true,
+          "hard": false
+        }
+      }
     },
     {
       "kind": "molecule",
@@ -558,7 +1098,25 @@
         "mapping": 24,
         "point_group": 1
       },
-      "beyond_quiz_vocabulary": false
+      "beyond_quiz_vocabulary": false,
+      "quiz_availability": {
+        "operation": {
+          "normal": true,
+          "hard": false
+        },
+        "composition": {
+          "normal": true,
+          "hard": true
+        },
+        "mapping": {
+          "normal": true,
+          "hard": false
+        },
+        "point_group": {
+          "normal": true,
+          "hard": false
+        }
+      }
     },
     {
       "kind": "molecule",
@@ -576,7 +1134,25 @@
         "mapping": 42,
         "point_group": 1
       },
-      "beyond_quiz_vocabulary": false
+      "beyond_quiz_vocabulary": false,
+      "quiz_availability": {
+        "operation": {
+          "normal": true,
+          "hard": false
+        },
+        "composition": {
+          "normal": true,
+          "hard": true
+        },
+        "mapping": {
+          "normal": true,
+          "hard": false
+        },
+        "point_group": {
+          "normal": true,
+          "hard": false
+        }
+      }
     },
     {
       "kind": "molecule",
@@ -594,7 +1170,25 @@
         "mapping": 12,
         "point_group": 1
       },
-      "beyond_quiz_vocabulary": false
+      "beyond_quiz_vocabulary": false,
+      "quiz_availability": {
+        "operation": {
+          "normal": true,
+          "hard": false
+        },
+        "composition": {
+          "normal": true,
+          "hard": true
+        },
+        "mapping": {
+          "normal": true,
+          "hard": false
+        },
+        "point_group": {
+          "normal": true,
+          "hard": false
+        }
+      }
     },
     {
       "kind": "molecule",
@@ -612,7 +1206,25 @@
         "mapping": 4,
         "point_group": 1
       },
-      "beyond_quiz_vocabulary": false
+      "beyond_quiz_vocabulary": false,
+      "quiz_availability": {
+        "operation": {
+          "normal": true,
+          "hard": false
+        },
+        "composition": {
+          "normal": true,
+          "hard": true
+        },
+        "mapping": {
+          "normal": true,
+          "hard": false
+        },
+        "point_group": {
+          "normal": true,
+          "hard": false
+        }
+      }
     },
     {
       "kind": "molecule",
@@ -630,7 +1242,25 @@
         "mapping": 28,
         "point_group": 1
       },
-      "beyond_quiz_vocabulary": false
+      "beyond_quiz_vocabulary": false,
+      "quiz_availability": {
+        "operation": {
+          "normal": true,
+          "hard": false
+        },
+        "composition": {
+          "normal": true,
+          "hard": true
+        },
+        "mapping": {
+          "normal": true,
+          "hard": false
+        },
+        "point_group": {
+          "normal": true,
+          "hard": false
+        }
+      }
     }
   ]
 }

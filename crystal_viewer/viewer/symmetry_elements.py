@@ -12,6 +12,7 @@ from crystal_viewer.viewer.animation import (
     shared_step_translation,
 )
 from crystal_viewer.viewer.display_atoms import display_point_cart, display_scene_center, display_scene_span
+from crystal_viewer.viewer.animation_path import decomposition_elements
 from crystal_viewer.viewer.glide_geometry import (
     align_fractional_vector_to_reference,
     centered_fractional_vector,
@@ -360,6 +361,17 @@ def visual_improper_elements(
     improper_mode: str,
 ) -> tuple[list[dict], list[dict], list[dict]]:
     kind = str(operation.get("kind", ""))
+    if improper_mode in ("rotoinversion", "rotoreflection"):
+        axis, plane, center = decomposition_elements(
+            operation, axes[0] if axes else None, planes[0] if planes else None,
+            centers[0] if centers else None, improper_mode, render_data,
+        )
+        if kind in ("mirror", "inversion") or "glide" in kind or any(word in kind for word in ("improper", "roto")):
+            if improper_mode == "rotoinversion":
+                return ([axis] if axis is not None and kind != "inversion" else [], [], [center] if center is not None else [])
+            show_axis = axis is not None and kind != "mirror" and "glide" not in kind
+            return ([axis] if show_axis else [],
+                    [plane] if plane is not None else [], [])
     if "rotoinversion" not in kind and "rotoreflection" not in kind and "improper" not in kind:
         return axes, planes, centers
 

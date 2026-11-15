@@ -7,9 +7,11 @@ import numpy as np
 from crystal_viewer.geometry import rotation_axis_sin_component
 from crystal_viewer.json_export import to_jsonable
 from crystal_viewer.source_kinds import SOURCE_KIND_MOLECULE, normalize_source_kind
-from crystal_viewer.viewer.animation_context import animation_paths, display_equivalent_operation_context
-from crystal_viewer.viewer.custom_animation import build_custom_animation_paths
+from crystal_viewer.viewer.animation_context import animation_paths, display_equivalent_operation_context, select_animation_context
+from crystal_viewer.viewer.custom_animation import build_custom_animation_paths, build_sequence_paths
 from crystal_viewer.viewer.animation_path import (
+    decomposition_elements,
+    improper_rotation_angle,
     maximum_travel_distance,
     normalized_animation_duration_seconds,
 )
@@ -42,8 +44,11 @@ def animation_path_response(
     display_mode: str = "source",
     cell_origin_mode: str = "center",
     include_boundary_images: bool = False,
-    animation_boundary_mode: str = "continuous",
+    repetitions: int = 1,
 ) -> dict[str, Any]:
+    repetitions = int(repetitions)
+    if not 1 <= repetitions <= 120:
+        raise ValueError("Repetitions must be between 1 and 120")
     operation = operation_by_index(render_data.get("operations", []), operation_index)
     if operation is None:
         raise ValueError(f"Operation index not found: {operation_index}")
@@ -70,6 +75,21 @@ def animation_path_response(
         display_mode=display_mode,
         cell_origin_mode=cell_origin_mode,
     )
+    if repetitions > 1:
+        axis, plane, center, _, _, angle = select_animation_context(
+            render_data, operation, mapping,
+            {atom["index"]: atom for atom in render_data["atoms"]},
+            representative_atom=representative_atom, element_index=None,
+        )
+        context = {"operation": operation, "axis": axis, "plane": plane, "center": center,
+                   "matrix": np.asarray(operation["matrix_cart"]),
+                   "translation": np.asarray(operation["translation_cart"]),
+                   "angle_override": angle, "label": f"op {operation_index}"}
+        paths = build_sequence_paths(render_data, paths.keys(), [context] * repetitions,
+                                     unit_cell_only, improper_mode, align_affine_elements=True)
+        # Each application has the same duration, including stationary atoms.
+        for path in paths.values():
+            path["segment_weights"] = [1] * repetitions
     entries_by_source = {
         int(entry["source_atom"]): entry
         for entry in mapping.get("entries", [])
@@ -80,10 +100,13 @@ def animation_path_response(
         if unit_cell_only:
             public_path["unit_cell_only"] = True
         entry = entries_by_source.get(int(source_atom), {})
+        target_atom = entry.get("target_atom")
+        for _ in range(repetitions - 1):
+            target_atom = entries_by_source.get(target_atom, {}).get("target_atom")
         items.append(
             {
                 "source_atom": int(source_atom),
-                "target_atom": entry.get("target_atom"),
+                "target_atom": target_atom,
                 "path": public_path,
             }
         )
@@ -97,6 +120,14 @@ def animation_path_response(
         unit_cell_only=unit_cell_only,
     )
 
+    if repetitions > 1:
+        first_paths = {source: path["segments"][0] for source, path in paths.items()}
+        first_travel = maximum_travel_distance(
+            render_data, first_paths, display_mode=display_mode, cell_origin_mode=cell_origin_mode,
+            include_boundary_images=include_boundary_images, unit_cell_only=unit_cell_only,
+        )
+    else:
+        first_travel = travel
     return {
         "schema_version": ANIMATION_PATH_SCHEMA_VERSION,
         "source_kind": source_kind,
@@ -107,16 +138,13 @@ def animation_path_response(
             else CRYSTAL_PERIODIC_IMAGE_POLICY
         ),
         "operation_index": int(operation_index),
+        "repetitions": repetitions,
         "maximum_travel_distance": travel,
         "animation_duration_seconds": normalized_animation_duration_seconds(
-            travel,
+            first_travel,
             display_scene_span(render_data, display_mode, cell_origin_mode),
-        ),
-        "boundary": animation_boundary_context(
-            render_data,
-            animation_boundary_mode=animation_boundary_mode,
-            cell_origin_mode=cell_origin_mode,
-        ),
+        ) * repetitions,
+        "boundary": {"mode": "continuous"},
         "scope": scope,
         "paths": items,
     }
@@ -144,7 +172,6 @@ def custom_animation_path_response(
     display_mode: str = "source",
     cell_origin_mode: str = "center",
     include_boundary_images: bool = False,
-    animation_boundary_mode: str = "continuous",
 ) -> dict[str, Any]:
     paths = build_custom_animation_paths(
         render_data, atom_mappings, request, improper_mode=improper_mode,
@@ -166,36 +193,8 @@ def custom_animation_path_response(
         "animation_duration_seconds": normalized_animation_duration_seconds(
             maximum, display_scene_span(render_data, display_mode, cell_origin_mode)
         ),
-        "boundary": animation_boundary_context(
-            render_data,
-            animation_boundary_mode=animation_boundary_mode,
-            cell_origin_mode=cell_origin_mode,
-        ),
+        "boundary": {"mode": "continuous"},
         "paths": items,
-    }
-
-
-def animation_boundary_context(
-    render_data: dict,
-    *,
-    animation_boundary_mode: str,
-    cell_origin_mode: str,
-) -> dict[str, Any]:
-    unit_cell = render_data.get("unit_cell")
-    if animation_boundary_mode != "wrap" or unit_cell is None:
-        return {"mode": "continuous"}
-    lattice = np.asarray(unit_cell["lattice"], dtype=float)
-    try:
-        inverse_lattice = np.linalg.inv(lattice)
-    except np.linalg.LinAlgError:
-        return {"mode": "continuous"}
-    return {
-        "mode": "wrap",
-        "coordinate_space": ANIMATION_COORDINATE_SPACE,
-        "cell_origin_mode": "corner" if cell_origin_mode == "corner" else "center",
-        "cart_to_cell": to_jsonable(inverse_lattice),
-        "cell_to_cart": to_jsonable(lattice),
-        "boundary_epsilon": 1e-9,
     }
 
 
@@ -256,7 +255,7 @@ def symmetry_elements_response(
         atom_mappings,
         operation_index,
         None,
-        improper_mode=improper_mode,
+        improper_mode="auto",
     )
     mapping = selected_mapping(atom_mappings, operation_index)
     glide_translation = (
@@ -273,6 +272,19 @@ def symmetry_elements_response(
         display_mode,
         cell_origin_mode,
     )
+    if improper_mode in ("rotoinversion", "rotoreflection"):
+        axis, plane, center = decomposition_elements(operation, axis, plane, center, improper_mode, render_data)
+        kind = str(operation.get("kind", ""))
+        if kind in ("mirror", "inversion") or "glide" in kind or any(word in kind for word in ("improper", "roto")):
+            if improper_mode == "rotoinversion":
+                plane = None
+                if kind == "inversion":
+                    axis = None
+            else:
+                center = None
+                if kind == "mirror" or "glide" in kind:
+                    axis = None
+    axes, planes, centers = ([axis] if axis is not None else [], [plane] if plane is not None else [], [center] if center is not None else [])
     view_direction = (
         visual_translation_direction_cart(render_data, operation, atom_mappings)
         if is_pure_translation_operation(operation)
@@ -290,6 +302,9 @@ def symmetry_elements_response(
         cell_origin_mode,
     )
     rotation_sign = axis_rotation_sign(operation, axis)
+    if improper_mode in ("rotoinversion", "rotoreflection") and axis is not None and np.linalg.det(operation["matrix_cart"]) < 0:
+        angle = improper_rotation_angle(operation, axis, improper_mode)
+        rotation_sign = int(np.sign(angle)) if angle is not None and 1e-8 < abs(angle) < np.pi - 1e-8 else None
     axis_payload = {**axis, "rotation_sign": rotation_sign} if axis is not None else None
     return {
         "schema_version": ANIMATION_PATH_SCHEMA_VERSION,

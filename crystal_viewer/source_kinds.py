@@ -18,7 +18,6 @@ class SourceKindUi:
     input_label: str
     symmetry_label: str
     operation_panel_title: str
-    view_center_label: str
 
 
 SOURCE_KIND_UI: dict[str, SourceKindUi] = {
@@ -27,21 +26,18 @@ SOURCE_KIND_UI: dict[str, SourceKindUi] = {
         input_label="CIF crystal",
         symmetry_label="Space group",
         operation_panel_title="Operations",
-        view_center_label="View center [x y z] - fractional",
     ),
     SOURCE_KIND_MOLECULE: SourceKindUi(
         label="Molecule",
         input_label="XYZ molecule",
         symmetry_label="Point group",
         operation_panel_title="Molecular Operations",
-        view_center_label="View center [x y z] - Cartesian \u212b",
     ),
     SOURCE_KIND_EMPTY: SourceKindUi(
         label="Empty",
         input_label="structure",
         symmetry_label="Symmetry",
         operation_panel_title="Operations",
-        view_center_label="View center [x y z]",
     ),
 }
 
@@ -60,7 +56,6 @@ def source_kind_ui_config_json() -> str:
                 "inputLabel": value.input_label,
                 "symmetryLabel": value.symmetry_label,
                 "operationPanelTitle": value.operation_panel_title,
-                "viewCenterLabel": value.view_center_label,
             }
             for key, value in SOURCE_KIND_UI.items()
         },

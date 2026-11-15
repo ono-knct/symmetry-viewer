@@ -15,12 +15,14 @@ import traceback
 
 import export_analysis_json
 import export_cell_setting_json
+import prepare_model_input
 import view_json_server
 
 
 WORKERS = {
     "export_analysis_json.py": export_analysis_json.main,
     "export_cell_setting_json.py": export_cell_setting_json.main,
+    "prepare_model_input.py": prepare_model_input.main,
 }
 # Printed before the server's own "Control panel: <url>" line.
 BANNER = """\

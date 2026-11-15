@@ -1,16 +1,7 @@
-# Exact versions for building the packaged viewer (packaging/build_linux.sh).
-#
-# requirements.txt only sets lower bounds, which is right for a development
-# install but would let every build pick up whatever was released that week.
-# Pin the dependency versions used by the packaged build.
-# The build itself runs on a python-build-standalone CPython 3.14.7 (pinned in
-# build_linux.sh), which targets an old glibc so the result runs on older
-# distributions too.
-# spglib versions can differ in operation ordering. Preserve this pin when
-# reproducing the packaged build.
-#
-# pymatgen pulls in matplotlib, plotly, sympy, networkx and more. They get
-# installed here but are left out of the build (excludes in symmetry_view.spec).
+# Pinned dependencies for the Windows/Linux packages and static Web build.
+# Build scripts pin python-build-standalone separately.
+# The optional packages excluded from the distribution are listed in
+# packaging/symmetry_view.spec.
 -r ../requirements.txt
 numpy==2.5.2
 scipy==1.18.0

@@ -3,10 +3,11 @@
 The example set is meant to be *recognisable*: the substances a symmetry course
 already talks about, small enough that every atom stays visible while an
 operation plays.  Rather than collecting downloaded CIFs of varying provenance,
-the generated crystal models specify their space groups, lattice constants and
-Wyckoff positions here. Halite uses reconstruct_cod_examples.py instead
-and is protected from this generator. The tables record model parameters and
-references; the output omits thermal displacement parameters.
+each structure is written here as its space group, lattice constants and Wyckoff
+positions, with the source of those numbers in the table.  That keeps the data
+auditable, keeps the files free of experimental clutter (partial occupancies,
+anisotropic displacement parameters), and lets the whole set be rebuilt with one
+command.
 
     tools/generate_example_structures.py              # write examples/
     tools/generate_example_structures.py --check-only # verify the shipped files
@@ -44,13 +45,6 @@ from crystal_viewer.structure_analysis import analyze_cif
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CIF_DIR = PROJECT_ROOT / "examples/cif"
 DEFAULT_MOLECULE_DIR = PROJECT_ROOT / "examples/molecules"
-
-# The Halite COD reconstruction uses tools/reconstruct_cod_examples.py instead.
-# Keep its atom/operation ordering intact.
-# Generic CifWriter refinement could change axes/order, so retain this guard
-# against bulk regeneration.
-PROTECTED = frozenset({"Halite"})
-
 
 @dataclass(frozen=True)
 class CrystalSpec:
@@ -204,65 +198,6 @@ def square_pyramid(center: str, apical: str, basal: str, apical_bond: float,
     return Molecule(species, coords)
 
 
-def icosahedron_directions() -> np.ndarray:
-    """The 12 unit vectors to the vertices of a regular icosahedron.
-
-    Cyclic permutations of (0, +-1, +-phi). Six 5-fold axes pass through
-    opposite pairs — the symmetry that no periodic lattice can have.
-    """
-    phi = (1.0 + math.sqrt(5.0)) / 2.0
-    vertices = []
-    for sign_a in (1.0, -1.0):
-        for sign_b in (1.0, -1.0):
-            vertices.append([0.0, sign_a * 1.0, sign_b * phi])
-            vertices.append([sign_a * 1.0, sign_b * phi, 0.0])
-            vertices.append([sign_b * phi, 0.0, sign_a * 1.0])
-    directions = np.asarray(vertices, dtype=float)
-    return directions / np.linalg.norm(directions[0])
-
-
-def icosahedron_edges(directions: np.ndarray) -> list[tuple[int, int]]:
-    """The 30 vertex pairs one edge apart (the shortest non-zero separation)."""
-    distances = [
-        (i, j, float(np.linalg.norm(directions[i] - directions[j])))
-        for i in range(len(directions))
-        for j in range(i + 1, len(directions))
-    ]
-    shortest = min(distance for *_, distance in distances)
-    return [(i, j) for i, j, distance in distances if abs(distance - shortest) < 1e-9]
-
-
-def centered_icosahedron(center: str, shell: str, radius: float) -> Molecule:
-    """One atom surrounded by a regular icosahedron of 12 others."""
-    directions = icosahedron_directions()
-    species = [center] + [shell] * len(directions)
-    coords = [[0.0, 0.0, 0.0]] + [list(direction * radius) for direction in directions]
-    return Molecule(species, coords)
-
-
-def mackay_icosahedron(inner: str, middle: str, outer: str, radius: float) -> Molecule:
-    """The 54-atom Mackay icosahedron, centre vacant.
-
-    Three shells at 1 : sqrt(2 + 2/sqrt5) : 2 — an icosahedron, the
-    icosidodecahedron on its edge midpoints, and a twice-as-large icosahedron.
-    The construction makes every inner-to-middle distance exactly `radius`, so
-    the cluster has just two nearest-neighbour distances.
-    """
-    directions = icosahedron_directions()
-    species: list[str] = []
-    coords: list[list[float]] = []
-    for direction in directions:
-        species.append(inner)
-        coords.append(list(direction * radius))
-    for i, j in icosahedron_edges(directions):
-        species.append(middle)
-        coords.append(list((directions[i] + directions[j]) * radius))
-    for direction in directions:
-        species.append(outer)
-        coords.append(list(direction * 2.0 * radius))
-    return Molecule(species, coords)
-
-
 def anti_dihaloethane(first: str, second: str, first_bond: float,
                       second_bond: float) -> Molecule:
     """anti-1,2-CHXY-CHXY: an inversion centre at the C-C midpoint and nothing else.
@@ -288,6 +223,14 @@ def anti_dihaloethane(first: str, second: str, first_bond: float,
 # --- the tables --------------------------------------------------------------
 
 CRYSTALS: tuple[CrystalSpec, ...] = (
+    CrystalSpec(
+        stem="Halite", space_group=225, symbol="Fm-3m",
+        lattice=Lattice.cubic(5.62),
+        species=("Na", "Cl"), coords=((0.0, 0.0, 0.0), (0.5, 0.5, 0.5)),
+        wyckoff=("4a", "4b"), atoms=8, formula="NaCl",
+        source="COD 1000041; Abrahams & Bernstein, Acta Cryst. 18 (1965) 926-932, DOI 10.1107/S0365110X65002244; X-ray structure, a = 5.62 A",
+        note="Rock salt: face-centred sublattices of Na and Cl.",
+    ),
     CrystalSpec(
         stem="CsCl", space_group=221, symbol="Pm-3m",
         lattice=Lattice.cubic(4.123),
@@ -593,8 +536,6 @@ def main() -> int:
     args = parser.parse_args()
 
     for spec in CRYSTALS:
-        if spec.stem in PROTECTED:
-            raise SystemExit(f"{spec.stem} is hand-authored and must not be generated")
         path = args.cif_dir / f"{spec.stem}.cif"
         if not args.check_only:
             path = write_crystal(spec, args.cif_dir)

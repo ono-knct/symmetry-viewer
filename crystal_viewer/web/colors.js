@@ -1,6 +1,8 @@
 // Shared colour constants for the Three.js scene and the puzzle overlays that
 // draw on top of it. Kept in one module so a colour picked for one context
-// remains distinct from the colours used by the other.
+// cannot silently collide with one already used by the other -- the mapping
+// quiz's guess ring used to sit almost on top of the axis colour before this
+// module existed (docs/archive/reviews/REVIEW_NOTES.md).
 
 // Symmetry elements drawn by StaticStructureView (three_view.js): the
 // highlighted axis/plane/center for the selected operation, in both analysis
@@ -18,7 +20,7 @@ export const SYMMETRY_ELEMENT_COLORS = {
 // SYMMETRY_ELEMENT_COLORS above, since the mapping quiz draws both the rings
 // and the operation's symmetry element in the same view at once.
 export const PUZZLE_RING_COLORS = {
-  source: 0xffd23f,
+  source: 0x7c3aed,
   guess: 0xf472b6,
   target: 0x35c46a,
 };

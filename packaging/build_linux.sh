@@ -55,7 +55,7 @@ cp packaging/README_linux.txt "$APP_DIR/README.txt"
 cp LICENSE "$APP_DIR/LICENSE.txt"
 mkdir -p "$APP_DIR/examples" "$APP_DIR/tools"
 cp examples/SOURCES.md "$APP_DIR/examples/SOURCES.md"
-cp tools/generate_example_structures.py tools/reconstruct_cod_examples.py "$APP_DIR/tools/"
+cp tools/generate_example_structures.py "$APP_DIR/tools/"
 tar -C "$DIST_DIR" -czf "$ARCHIVE" symmetry-viewer
 
 du -sh "$APP_DIR" "$ARCHIVE"

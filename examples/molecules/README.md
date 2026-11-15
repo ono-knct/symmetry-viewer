@@ -1,7 +1,7 @@
-# 収録している分子構造
+# Molecule XYZ Samples
 
-対称性の教材として、教科書に出る分子から点群がなるべく重ならないように19種を選んでいます。
-結合長・結合角と配座を設定した理想化モデルです。
+対称性の教材として選んだ分子。教科書に出る分子から、点群がなるべく重ならないように
+選んでいる。座標は理想化した幾何で、実測構造でも最適化構造でもない。
 
 | ファイル | 点群 | 原子 | 見どころ |
 | --- | --- | --- | --- |
@@ -13,7 +13,7 @@
 | `boron_trifluoride.xyz` | D3h | 4 | 平面三角形 |
 | `methane.xyz` | Td | 5 | 正四面体 |
 | `chlorofluoromethane.xyz` | Cs | 5 | 鏡映が 1 枚だけ |
-| `bromochlorofluoromethane.xyz` | C1 | 5 | 恒等操作のみ・掌性（点群あてクイズの対象） |
+| `bromochlorofluoromethane.xyz` | C1 | 5 | 対称性なし・掌性（クイズには出ない） |
 | `xenon_tetrafluoride.xyz` | D4h | 5 | 平面四角形 |
 | `ethene.xyz` | D2h | 6 | 平面・直交する 3 本の C2 |
 | `trans_dichloroethene.xyz` | C2h | 6 | C2 と σh、その積の反転中心 |
@@ -25,4 +25,18 @@
 | `anti_dibromodichloroethane.xyz` | Ci | 8 | 反転中心だけを持つ |
 | `benzene.xyz` | D6h | 12 | 主軸が S6 と S3 の両方を担う |
 
-教材データの追加・変更は、[開発者向け手順](https://github.com/ono-knct/symmetry-viewer/blob/v1.0.0/docs/development.md#収録データを再生成する)を参照してください。
+## 追加・変更のしかた
+
+`water` `ammonia` `methane` `benzene` `ethene` `allene` `boron_trifluoride`
+`sulfur_hexafluoride` `xenon_tetrafluoride` `carbon_dioxide` `hydrogen_chloride`
+は手書き。それ以外は `tools/generate_example_structures.py` の `MOLECULES` 表からの生成物。
+
+```bash
+.venv/bin/python tools/generate_example_structures.py
+.venv/bin/python tools/regenerate_example_assets.py --clean
+```
+
+点群の判定は解析の許容誤差に依存します。標準の許容誤差は0.3 Åで、
+厳密には対称でない座標も、対称な構造として判定される場合があります。
+生成器の対象である8分子は、0.3 Åと0.05 Åの両方で指定した点群になることを検証します。
+手書きの11分子は生成器の検証対象外です。座標を変更する場合は、結合長・角度と解析条件を確認してください。

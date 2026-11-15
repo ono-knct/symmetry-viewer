@@ -13,9 +13,11 @@ class ViewerSession:
         payload: dict,
         *,
         base_payload: dict | None = None,
+        placement_payload: dict | None = None,
         summarize_operations: bool = True,
     ) -> None:
         self.load(json_path, payload, base_payload=base_payload, summarize_operations=summarize_operations)
+        self.placement_payload = placement_payload or payload
 
     def load(
         self,
@@ -25,8 +27,11 @@ class ViewerSession:
         base_payload: dict | None = None,
         summarize_operations: bool = True,
     ) -> None:
+        if payload.get("schema_version") == 8 or "verified_export" in payload:
+            raise ValueError("verified schema-8 exports require the API2 model host")
         self.json_path = json_path
         self.base_payload = base_payload or payload
+        self.placement_payload = payload
         self.payload = payload
         self.render_data = payload["render_data"]
         self.atoms = self.render_data["atoms"]
@@ -49,6 +54,7 @@ class ViewerSession:
     def replace_from(self, other: "ViewerSession") -> None:
         self.json_path = other.json_path
         self.base_payload = other.base_payload
+        self.placement_payload = other.placement_payload
         self.payload = other.payload
         self.render_data = other.render_data
         self.atoms = other.atoms

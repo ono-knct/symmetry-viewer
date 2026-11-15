@@ -12,10 +12,31 @@ def normalized_cell_origin_mode(cell_origin_mode: str = "center") -> str:
 
 
 def display_fractional_bounds(display_mode: str = "source", cell_origin_mode: str = "center") -> tuple[float, float]:
+    """Scalar envelope of the display; use axis bounds for individual images."""
     margin = display_mode_margin(display_mode)
     if normalized_cell_origin_mode(cell_origin_mode) == "corner":
         return -margin, 1.0 + margin
     return -0.5 - margin, 0.5 + margin
+
+
+def display_axis_margins(display_mode: str) -> np.ndarray:
+    """Decode per-axis quarter-cell steps, keeping legacy uniform modes valid.
+
+    ``expanded_axes:2,0,1`` expands a/b/c by 1/2, 0, and 1/4.
+    The existing display_mode string is shared by rendering and animation APIs.
+    """
+    if display_mode.startswith("expanded_axes:"):
+        steps = display_mode.removeprefix("expanded_axes:").split(",")
+        if len(steps) != 3 or any(step not in {"0", "1", "2", "3", "4"} for step in steps):
+            raise ValueError("Axis ranges must contain three quarter-cell steps from 0 to 4")
+        return np.asarray([int(step) / 4 for step in steps])
+    return np.full(3, display_mode_margin(display_mode))
+
+
+def display_fractional_axis_bounds(display_mode: str = "source", cell_origin_mode: str = "center") -> tuple[np.ndarray, np.ndarray]:
+    margin = display_axis_margins(display_mode)
+    lower, upper = display_fractional_bounds("source", cell_origin_mode)
+    return lower - margin, upper + margin
 
 
 def display_atom_instances(
@@ -82,9 +103,9 @@ def display_fractional_shifts(
     cell_origin_mode: str = "center",
     include_boundary_images: bool = False,
 ) -> list[np.ndarray]:
-    margin = display_mode_margin(display_mode)
+    margin = float(display_axis_margins(display_mode).max())
     shifts = []
-    lower, upper = display_fractional_bounds(display_mode, cell_origin_mode)
+    lower, upper = display_fractional_axis_bounds(display_mode, cell_origin_mode)
     for shift in periodic_shifts(max(int(np.ceil(margin + 1.0)), 1)):
         image_frac = frac + shift
         within_upper = (
@@ -108,6 +129,8 @@ def periodic_shifts(limit: int = 1) -> np.ndarray:
 
 
 def display_mode_margin(display_mode: str) -> float:
+    if display_mode.startswith("expanded_axes:"):
+        return float(display_axis_margins(display_mode).max())
     if display_mode == "source":
         return 0.0
     if display_mode in ("expanded", "expanded_quarter"):
@@ -142,8 +165,8 @@ def display_scene_span(render_data: dict, display_mode: str = "source", cell_ori
     if unit_cell is None:
         return scene_span(render_data)
     lattice = np.asarray(unit_cell["lattice"], dtype=float)
-    lower, upper = display_fractional_bounds(display_mode, cell_origin_mode)
-    corners_frac = np.asarray(list(product((lower, upper), repeat=3)), dtype=float)
+    lower, upper = display_fractional_axis_bounds(display_mode, cell_origin_mode)
+    corners_frac = np.asarray(list(product(*zip(lower, upper))), dtype=float)
     corners_cart = corners_frac @ lattice
     span = np.linalg.norm(corners_cart.max(axis=0) - corners_cart.min(axis=0))
     return float(span if span > 1e-9 else scene_span(render_data))

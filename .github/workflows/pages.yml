@@ -1,0 +1,52 @@
+# Builds the static Web version (web_static/build.py) and publishes it on the
+# repository's GitHub Pages, on a version tag (v1.0.0, ...) or by hand.
+# Needs Settings > Pages > Source set to "GitHub Actions".
+#
+# Kept in the development repository as packaging/release/pages.yml and copied
+# to .github/workflows/ by packaging/export_release_repo.sh.
+name: pages
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      # The versions the downloadable builds use, so the Web version numbers the
+      # operations of each example the same way (checked below).
+      - name: Install
+        run: python -m pip install -r packaging/requirements-build.txt
+      - name: Build
+        run: python web_static/build.py
+      - name: Check against the bundled exports
+        run: python web_static/check_build.py build/web-static
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web-static
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

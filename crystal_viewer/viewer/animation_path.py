@@ -15,10 +15,39 @@ from crystal_viewer.geometry import (
 from crystal_viewer.viewer.display_atoms import display_atom_instances
 
 
-NORMALIZED_TRAVEL_SPEED_PER_SECOND = 0.525
+NORMALIZED_TRAVEL_SPEED_PER_SECOND = 1.18125
 MINIMUM_ANIMATION_SECONDS = 1.0
 MAXIMUM_ANIMATION_SECONDS = 16.0 / 3.0
 STATIONARY_ANIMATION_SECONDS = 0.4
+
+
+def decomposition_elements(operation, axis, plane, center, mode, render_data=None):
+    """Choose geometry for a decomposition, independently of selected atoms.
+
+    A mirror's inversion centre is the orthogonal projection of the coordinate
+    origin on its plane. Inversion's S2 axis is parallel to cell c (molecular z).
+    These are conventions for the factorisation, not extra structure symmetries.
+    """
+    kind = str(operation.get("kind", ""))
+    if mode not in ("rotoinversion", "rotoreflection"):
+        return axis, plane, center
+    if (kind == "mirror" or "glide" in kind) and plane is not None:
+        normal = normalize(np.asarray(plane["normal_cart"], dtype=float))
+        point = normal * np.dot(normal, np.asarray(plane["point_cart"], dtype=float))
+        axis = {"point_cart": point, "direction_cart": normal}
+        center = {"point_cart": point}
+    elif kind == "inversion" and center is not None:
+        lattice = (render_data or {}).get("unit_cell", {}).get("lattice") if (render_data or {}).get("unit_cell") else None
+        direction = normalize(np.asarray(lattice[2] if lattice is not None else [0, 0, 1], dtype=float))
+        axis = {"point_cart": center["point_cart"], "direction_cart": direction}
+        plane = improper_reflection_plane(axis)
+    elif any(word in kind for word in ("improper", "rotoinversion", "rotoreflection")):
+        axis = effective_rotation_axis(operation, axis, center)
+        # Both factors must share the same point on the improper axis.
+        if axis is not None:
+            center = improper_inversion_center(axis)
+            plane = improper_reflection_plane(axis)
+    return axis, plane, center
 
 
 def effective_rotation_axis(operation: dict, axis: dict | None, center: dict | None) -> dict | None:
@@ -83,9 +112,36 @@ def build_operation_path(
     translation_override: np.ndarray | None = None,
     improper_mode: str = "auto",
     source_kind: str = "",
+    render_data: dict | None = None,
 ) -> dict:
     kind = str(operation["kind"])
     axis = effective_rotation_axis(operation, axis, center)
+    if improper_mode in ("rotoinversion", "rotoreflection") and (
+        kind in ("mirror", "inversion") or "glide" in kind
+    ):
+        axis, plane, center = decomposition_elements(
+            operation, axis, plane, center, improper_mode, render_data,
+        )
+        if improper_mode == "rotoinversion" and kind == "inversion":
+            return inversion_path(start, target, center)
+        if improper_mode == "rotoreflection" and kind != "inversion":
+            return (glide_path(start, target, plane, translation_override=translation_override)
+                    if "glide" in kind else mirror_path(start, target, plane))
+        if axis is not None:
+            reflected = reflect_point(start, plane["point_cart"], plane["normal_cart"]) if plane else target
+            improper_target = reflected if "glide" in kind else target
+            compound = improper_path(
+                start, improper_target, {**operation, "order": 2}, axis, plane, center,
+                angle_override=np.pi, improper_mode=improper_mode, source_kind=source_kind,
+            )
+            if "glide" not in kind:
+                return compound
+            translation = (target - reflected if translation_override is None
+                           else np.asarray(translation_override, dtype=float))
+            # Three phases, with shared weights assigned across all atoms below.
+            return {"type": "sequential", "start": start, "target": reflected + translation, "segments": [
+                compound, translation_path(reflected, reflected + translation),
+            ]}
     geometric_kind = (
         kind.startswith(("rotation", "screw"))
         or kind in ("mirror", "inversion")
@@ -108,6 +164,7 @@ def build_operation_path(
     if "glide" in kind:
         return glide_path(start, target, plane, translation_override=translation_override)
     if "rotoinversion" in kind or "rotoreflection" in kind or "improper" in kind:
+        axis, plane, center = decomposition_elements(operation, axis, plane, center, improper_mode, render_data)
         return improper_path(
             start,
             target,
@@ -243,7 +300,9 @@ def improper_path(
     center = center or improper_inversion_center(axis)
     if mode == "rotoreflection" and (operation.get("order") is None or "infinite" in str(operation.get("kind", ""))):
         return mirror_after_hold_path(start, target, plane)
-    if angle_override is None:
+    # A context's rotation angle may belong to the other factorisation.
+    # Explicit special cases (mirror/S2) pass their chosen pi angle directly.
+    if str(operation.get("kind")) not in ("mirror", "inversion", "glide") or angle_override is None:
         angle_override = improper_rotation_angle(operation, axis, mode)
     rotated = rotation_path(start, target, operation, axis, angle_override=angle_override)
     if rotated["type"] != "rotation":
@@ -384,10 +443,12 @@ def synchronize_compound_path_phases(paths: dict[int, dict]) -> None:
             indexed = {key: path["segments"][index] for key, path in paths.items()
                        if path.get("type") == "sequential" and len(path.get("segments", [])) > index}
             synchronize_compound_path_phases(indexed)
-            duration_lengths.append(max(
-                animation_path_length(segment, start_override=np.asarray(segment["start"], dtype=float))
-                for segment in indexed.values()
-            ))
+            segments = list(indexed.values())
+            if segments and all(segment.get("type") in {"screw", "glide", "rotoinversion", "rotoreflection"} for segment in segments):
+                lengths = [two_phase_geometry(segment, np.asarray(segment["start"]))[2:] for segment in segments]
+                duration_lengths.append(max(pair[0] for pair in lengths) + max(pair[1] for pair in lengths))
+            else:
+                duration_lengths.append(max(animation_path_length(segment) for segment in segments))
         total = sum(duration_lengths)
         weights = ([length / total for length in duration_lengths] if total > 1e-12
                    else [1.0 / segment_count] * segment_count) if segment_count else []

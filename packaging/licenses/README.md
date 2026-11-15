@@ -43,15 +43,44 @@ Two are not in those directories and were fetched from upstream:
   (`Modules/_hacl/`, "Licensed under the Apache 2.0 and MIT Licenses").
   From https://github.com/hacl-star/hacl-star/blob/main/LICENSE.
 
-**Check the built files, not only `PYTHON.json`.** The Windows `PYTHON.json` of
-this release says `_ssl` links `libcrypto-1_1-x64`, but the build actually
-contains `libcrypto-3-x64.dll` and `libssl-3-x64.dll`, so it requires the
-OpenSSL 3 license text.
+## Windows runtime components
 
-The Windows build also carries Microsoft's C/C++ runtime (`VCRUNTIME140.dll`,
-`VCRUNTIME140_1.dll` and `MSVCP140.dll`), which PyInstaller copies from the
-runner.
+Inspect the built files as well as `PYTHON.json`: metadata alone does not identify
+all libraries collected by PyInstaller. The inspected Windows package contains
+OpenSSL 3 (`libcrypto-3-x64.dll` and `libssl-3-x64.dll`).
 
-When a build script moves to another python-build-standalone release, fetch
-that release's full archive for the platform and redo the selection from its
-`PYTHON.json`.
+The Windows package also includes Microsoft runtime components. These are not
+covered by this project's MIT license. Redistribution is subject to the terms
+applicable to their source distribution and the build tools used.
+
+| Component | Source comparison for the inspected package |
+|---|---|
+| `VCRUNTIME140.dll`, `VCRUNTIME140_1.dll` | Byte-identical to the pinned python-build-standalone archive above |
+| `MSVCP140.dll` (14.40.33810.0) | Byte-identical to the runtime in the NumPy 2.5.2 Windows wheel |
+| Renamed `msvcp140-*.dll` in `numpy.libs` and `pandas.libs` | Byte-identical to the runtime in the NumPy 2.5.2 and pandas 3.0.5 Windows wheels |
+| `ucrtbase.dll`, `api-ms-win-*.dll` (10.0.26100.1742) | Microsoft UCRT components collected by the Windows build; the exact source directory is not recorded in the ZIP |
+
+The comparison uses the CPython archive hash pinned in `build_windows.ps1` and
+the wheel hashes published by PyPI. It identifies matching files, not a grant
+of redistribution rights. Check the applicable terms when rebuilding or
+redistributing, including the Visual Studio/Build Tools and Windows SDK terms.
+Microsoft documents local deployment of UCRT from the Windows SDK's
+`Redist/ucrt/DLLs` directory. For a release, retain the collection paths and
+confirm that the UCRT files came from a redistributable location.
+
+Official references:
+
+- [Visual C++ redistribution and license terms](https://learn.microsoft.com/en-us/cpp/windows/redistributing-visual-cpp-files)
+- [Visual Studio 2022 distributable files](https://learn.microsoft.com/en-us/visualstudio/releases/2022/redistribution)
+- [Universal CRT deployment](https://learn.microsoft.com/en-us/cpp/windows/universal-crt-deployment)
+- [Microsoft license directory](https://visualstudio.microsoft.com/license-terms/)
+
+## Updating the bundled runtime
+
+Berkeley DB (`_dbm`) and Tcl/Tk (`_tkinter`) are not included in the inspected
+packages. Linux `readline` uses libedit. The PyInstaller bootloader has its own
+license and distribution exception; its license text is collected separately.
+
+When changing the python-build-standalone release, obtain the matching full
+archive, review `PYTHON.json`, and compare it with the generated package.
+Recheck the license selection for each platform and keep upstream notices intact.

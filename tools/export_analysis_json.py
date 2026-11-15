@@ -6,7 +6,7 @@ from pathlib import Path
 
 import _bootstrap  # noqa: F401
 
-from crystal_viewer.export_pipeline import build_export_payload, export_analysis_to_json
+from crystal_viewer.export_pipeline import build_export_payload, build_legacy_export_payload, export_analysis_to_json
 
 
 def main() -> int:
@@ -16,7 +16,17 @@ def main() -> int:
     parser.add_argument("--output", "-o", type=Path, default=None)
     parser.add_argument("--tolerance-cart", type=float, default=1e-2)
     parser.add_argument("--indent", type=int, default=2)
+    parser.add_argument("--legacy-contract", action="store_true", help="Explicit API1 compatibility export.")
     args = parser.parse_args()
+    if args.legacy_contract:
+        payload = build_legacy_export_payload(args.path, mode=args.mode, tolerance_cart=args.tolerance_cart)
+        if args.output is None:
+            print(json.dumps(payload, ensure_ascii=False, indent=args.indent))
+        else:
+            from crystal_viewer.model_export import write_verified_export
+            write_verified_export(args.output, payload, indent=args.indent)
+            print(f"Wrote {args.output}")
+        return 0
 
     if args.output is None:
         payload = build_export_payload(

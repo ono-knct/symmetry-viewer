@@ -60,7 +60,6 @@ Copy-Item LICENSE (Join-Path $AppDir "LICENSE.txt")
 New-Item -ItemType Directory -Force -Path (Join-Path $AppDir "examples"), (Join-Path $AppDir "tools") | Out-Null
 Copy-Item examples\SOURCES.md (Join-Path $AppDir "examples\SOURCES.md")
 Copy-Item tools\generate_example_structures.py (Join-Path $AppDir "tools")
-Copy-Item tools\reconstruct_cod_examples.py (Join-Path $AppDir "tools")
 tar -a -c -f $Archive -C $DistDir symmetry-viewer
 
 "{0:N0} MB  {1}" -f ((Get-ChildItem -Recurse -File $AppDir | Measure-Object Length -Sum).Sum / 1MB), $AppDir

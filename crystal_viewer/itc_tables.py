@@ -18,6 +18,10 @@ def itc_coordinate_summaries(render_data: dict) -> dict[int, str]:
 
     Matching is by exact (W, t) so it does not depend on operation ordering.
     """
+    # The bundled tables use their standard origin. Arbitrary site origins must
+    # use the directly computed element positions, never an approximate table hit.
+    if np.any(np.abs(render_data.get("metadata", {}).get("display_origin_frac", [0, 0, 0])) > 1e-10):
+        return {}
     number = space_group_number_from_metadata(render_data)
     if number is None:
         return {}

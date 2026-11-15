@@ -465,13 +465,6 @@ def canonical_direction(vector: np.ndarray) -> np.ndarray:
     return clean_vector(vector)
 
 
-def canonical_plane_basis(basis: np.ndarray) -> np.ndarray:
-    v1 = normalize(basis[:, 0])
-    v2 = basis[:, 1] - np.dot(basis[:, 1], v1) * v1
-    v2 = normalize(v2)
-    return np.column_stack((canonical_direction(v1), canonical_direction(v2)))
-
-
 def plane_basis_from_normal(normal: np.ndarray) -> np.ndarray:
     v1, v2 = plane_basis_from_normal_cart(normal)
     return np.column_stack((canonical_direction(v1), canonical_direction(v2)))

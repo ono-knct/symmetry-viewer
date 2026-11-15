@@ -15,7 +15,10 @@ given command with --no-browser and then, as the browser would:
   shows up here;
 - uploads one molecule three times, saved with LF, CRLF and CR newlines, and
   checks what the analysis made of it;
-- asks each quiz for its questions and writes a GIF.
+- writes a GIF of the loaded molecule and starts a round of each quiz.
+
+It speaks the page's API version 2: every request carries the identity of
+the structure it is about, as view_api.js does.
 
 --quick keeps the cell and import steps to one crystal and one molecule.
 --root is the folder holding examples/ and exports/json; for a built
@@ -43,33 +46,41 @@ STATIC_PATHS = (
     "/static/browser_ui.js",
     "/static/animation_path.js",
     "/static/colors.js",
+    "/static/model_snapshot.js",
+    "/static/operation_math.js",
+    "/static/playback_schedule.js",
+    "/static/puzzle.js",
     "/static/three_loader.js",
     "/static/three_view.js",
-    "/static/puzzle.js",
+    "/static/view_api.js",
     "/vendor/three/three.module.js",
     "/vendor/three/three.core.js",
     "/vendor/three/addons/controls/TrackballControls.js",
 )
-QUIZ_PATHS = (
-    "/api/puzzle/axis_orders",
-    "/api/puzzle/operations",
-    "/api/puzzle/composition",
-    "/api/puzzle/mapping",
-    "/api/puzzle/point_group",
-)
+# Every request after bootstrap carries the identity of the structure it is
+# about (view_api.js / model_snapshot.js); a load answers with the new one.
+IDENTITY_KEYS = ("model_id", "source_model_id", "frame_id", "structure_revision", "math_version")
+QUIZ_TYPES = ("operation", "composition", "mapping", "point_group")
 # A 1x1 PNG, enough for the GIF writer.
 PIXEL_PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg=="
 STARTUP_TIMEOUT_SEC = 120
 
 
+def identity(bundle: dict) -> dict:
+    snapshot = bundle.get("model_snapshot") or {}
+    return {key: snapshot[key] for key in IDENTITY_KEYS if key in snapshot}
+
+
 class SmokeTest:
+    """Talks to the server the way the page does (API version 2)."""
+
     def __init__(self, base_url: str) -> None:
         self.base_url = base_url
-        self.request_id = 0
         self.failures: list[str] = []
+        self.bundle: dict = {}  # the analysis structure currently loaded
 
     def request(self, path: str, payload: dict | None = None, *, timeout: float = 300) -> tuple[int, bytes]:
-        data = None if payload is None else json.dumps(payload).encode("utf-8")
+        data = None if payload is None else json.dumps({"api_version": 2, **payload}).encode("utf-8")
         request = urllib.request.Request(self.base_url + path, data=data)
         if data is not None:
             request.add_header("Content-Type", "application/json")
@@ -79,21 +90,31 @@ class SmokeTest:
         except urllib.error.HTTPError as exc:
             return exc.code, exc.read()
 
-    def post_ok(self, label: str, path: str, payload: dict) -> bool:
-        self.request_id += 1
+    def post(self, label: str, path: str, payload: dict, *, quiet: bool = False) -> dict | None:
         started = time.monotonic()
-        status, body = self.request(path, {**payload, "request_id": self.request_id})
+        status, body = self.request(path, payload)
         elapsed = time.monotonic() - started
         try:
             result = json.loads(body)
         except json.JSONDecodeError:
             result = {}
-        if status == 200 and result.get("ok"):
-            print(f"  ok    {label} ({elapsed:.1f}s)")
-            return True
-        error = result.get("error") or body[:300].decode("utf-8", "replace")
-        self.fail(f"{label}: HTTP {status}: {error}")
-        return False
+        if status == 200 and isinstance(result, dict) and "error" not in result:
+            if not quiet:
+                print(f"  ok    {label} ({elapsed:.1f}s)")
+            return result
+        error = (result.get("message") or result.get("error")) if isinstance(result, dict) else None
+        self.fail(f"{label}: HTTP {status}: {error or body[:300].decode('utf-8', 'replace')}")
+        return None
+
+    def load(self, label: str, endpoint: str, payload: dict) -> dict | None:
+        """open_example / import_* / cell_setting: answers with the new structure."""
+        result = self.post(label, f"/api/view/{endpoint}", {**identity(self.bundle), **payload})
+        if result is not None:
+            if not result.get("model_snapshot"):
+                self.fail(f"{label}: the answer has no structure")
+                return None
+            self.bundle = result
+        return result
 
     def fail(self, message: str) -> None:
         print(f"  FAIL  {message}")
@@ -110,12 +131,14 @@ class SmokeTest:
                 self.fail(f"{path}: HTTP {status}, {len(body)} bytes")
         print(f"  checked / and {len(STATIC_PATHS)} assets")
 
+    def bootstrap(self) -> None:
+        print("analysis start")
+        result = self.post("bootstrap", "/api/view/bootstrap", {})
+        if result is not None:
+            self.bundle = result
+
     def examples(self) -> dict[str, list[dict]]:
-        status, body = self.request("/api/examples")
-        if status != 200:
-            self.fail(f"/api/examples: HTTP {status}")
-            return {}
-        catalog = json.loads(body)
+        catalog = self.post("example catalog", "/api/view/examples", identity(self.bundle), quiet=True) or {}
         print(f"examples: {len(catalog.get('crystal', []))} crystals, {len(catalog.get('molecule', []))} molecules")
         return catalog
 
@@ -125,7 +148,7 @@ class SmokeTest:
         before = export_snapshot(exports)
         for kind in ("crystal", "molecule"):
             for item in catalog.get(kind, []):
-                self.post_ok(f"open {item['path']}", "/api/open_example", {"kind": kind, "path": item["path"]})
+                self.load(f"open {item['path']}", "open_example", {"kind": kind, "path": item["path"]})
         after = export_snapshot(exports)
         if not before:
             self.fail(f"no exports found under {exports}")
@@ -136,28 +159,37 @@ class SmokeTest:
     def convert_cells(self, crystals: list[dict]) -> None:
         print("primitive and Bravais cells")
         for item in crystals:
-            if not self.post_ok(f"open {item['path']}", "/api/open_example", {"kind": "crystal", "path": item["path"]}):
+            if self.load(f"open {item['path']}", "open_example", {"kind": "crystal", "path": item["path"]}) is None:
                 continue
             for mode in ("primitive", "conventional"):
-                self.post_ok(f"  {mode}", "/api/cell_setting", {"cell_setting_mode": mode})
+                self.load(f"  {mode}", "cell_setting", {"cell_setting_mode": mode})
 
     def import_files(self, root: Path, crystals: list[dict], molecules: list[dict]) -> None:
         print("import bundled files as the user's own (full analysis in a worker)")
-        for kind, items, path in (
-            ("crystal", crystals, "/api/import_cif"),
-            ("molecule", molecules, "/api/import_molecule"),
-        ):
+        for items, endpoint in ((crystals, "import_cif"), (molecules, "import_molecule")):
             for item in items:
                 source = root / item["path"]
                 content = source.read_text(encoding="utf-8")
-                self.post_ok(f"import {source.name}", path, {"filename": source.name, "content": content})
+                self.load(f"import {source.name}", endpoint, {"filename": source.name, "content": content})
 
     def check_newlines(self) -> None:
-        """Upload a molecule with LF, CRLF and CR, then check its identity.
+        """Upload the same molecule with each newline convention.
 
-        Construct the newline variants directly: read_text() would normalize
-        them before upload. Running on Windows exercises text-file writing
-        with Windows newline translation; Linux alone cannot cover that path.
+        Notepad saves CRLF, so this is what a Windows user's own file looks
+        like. It used to fail there and only there: the upload was written back
+        in text mode, Windows turned every "\\n" into "\\r\\n" a second time, and
+        the file read back with a blank line between every line, which the XYZ
+        parser could not take. The bundled examples cannot cover this -- reading
+        one with read_text() strips the carriage returns before the server ever
+        sees them -- so build the content here instead. CIF goes through the
+        same upload path, so guarding XYZ guards both.
+
+        **On Linux this passes whether or not the fix is in place**, because
+        nothing doubles the newlines on the way to disk and Python's universal
+        newlines absorb a bare CR on the way back. It is the Windows run of this
+        smoke test that does the work. Reproducing the Windows write on Linux
+        (normalization removed, newline="\\r\\n") fails on CRLF alone, exactly as
+        the machine did, so the check is known to catch the bug it guards.
         """
         print("uploads with each newline convention (a file saved on Windows arrives as CRLF)")
         water = (
@@ -171,16 +203,13 @@ class SmokeTest:
             ("CRLF", water.replace("\n", "\r\n")),
             ("CR", water.replace("\n", "\r")),
         ):
-            if not self.post_ok(
-                f"import a molecule saved with {label} newlines",
-                "/api/import_molecule",
-                {"filename": f"newline_{label}.xyz", "content": content},
-            ):
+            result = self.load(f"import a molecule saved with {label} newlines", "import_molecule",
+                               {"filename": f"newline_{label}.xyz", "content": content})
+            if result is None:
                 continue
             # "ok" is not enough. A file that reaches the parser mangled can
             # still come back as a molecule -- just the wrong one.
-            status, body = self.request("/api/state")
-            metadata = (json.loads(body).get("metadata") or {}) if status == 200 else {}
+            metadata = ((result.get("render_payload") or {}).get("render_data") or {}).get("metadata") or {}
             found = (
                 metadata.get("display_formula") or metadata.get("formula"),
                 metadata.get("point_group_label"),
@@ -191,27 +220,50 @@ class SmokeTest:
             else:
                 self.fail(f"{label} newlines analyzed as {found}, expected ('H2O', 'C2v', 4)")
 
-    def check_quizzes(self, molecule: dict | None) -> None:
-        print("quizzes")
-        if molecule is not None:
-            self.post_ok(f"open {molecule['path']}", "/api/open_example", {"kind": "molecule", "path": molecule["path"]})
-        for path in QUIZ_PATHS:
-            status, body = self.request(path)
-            try:
-                json.loads(body)
-            except json.JSONDecodeError:
-                status = -1
-            if status != 200:
-                self.fail(f"{path}: HTTP {status}")
-        print(f"  checked {len(QUIZ_PATHS)} quiz endpoints")
-
     def check_gif(self) -> None:
+        """Write a GIF of the selected operation of the loaded structure."""
         print("GIF export")
-        status, body = self.request("/api/export_gif", {"frames": [PIXEL_PNG, PIXEL_PNG], "frame_duration_ms": 100})
+        snapshot = self.bundle.get("model_snapshot") or {}
+        index = (self.bundle.get("state") or {}).get("operation_index")
+        operation = next((op for op in snapshot.get("operations", []) if op.get("operation_index") == index), None)
+        plan = next((p for p in (operation or {}).get("plans", []) if p.get("mode") == "default"), None)
+        if plan is None:
+            self.fail("GIF export: no default plan for the selected operation")
+            return
+        plan_request = {**identity(self.bundle), "operation_index": index, "operation_id": operation["operation_id"],
+                        "mode": "default", "plan_id": plan["plan_id"]}
+        path = self.post("animation path", "/api/view/animation_path", {**identity(self.bundle), "plan_request": plan_request})
+        if path is None:
+            return
+        status, body = self.request("/api/view/export_gif", {
+            **identity(self.bundle), "plan_request": plan_request, "plan_id": plan["plan_id"],
+            "schedule_id": path["playback"]["schedule"]["schedule_id"],
+            "frames": [PIXEL_PNG, PIXEL_PNG], "frame_duration_ms": 100})
         if status != 200 or not body.startswith(b"GIF8"):
-            self.fail(f"/api/export_gif: HTTP {status}, {body[:80]!r}")
+            self.fail(f"/api/view/export_gif: HTTP {status}, {body[:120]!r}")
         else:
             print(f"  ok    {len(body)} bytes")
+
+    def check_quizzes(self, catalog: dict[str, list[dict]]) -> None:
+        """Start a round of each quiz on the first example offering its Normal level."""
+        print("quizzes")
+        if self.post("quiz start", "/api/quiz/model/bootstrap", {}) is None:
+            return
+        for quiz in QUIZ_TYPES:
+            item = next((item for kind in ("molecule", "crystal") for item in catalog.get(kind, [])
+                         if (item.get("quiz_availability") or {}).get(quiz, {}).get("normal")), None)
+            if item is None:
+                self.fail(f"{quiz}: no example offers this quiz")
+                continue
+            opened = self.post(f"{quiz}: open {item['path']}", "/api/quiz/model/open_example", {
+                "round_id": None, "question_token": None, "selection_revision": 1,
+                "kind": item["kind"], "path": item["path"], "quiz_type": quiz, "difficulty": "normal"})
+            if opened is None:
+                continue
+            questions = self.post(f"{quiz}: questions", "/api/quiz/model/questions", {
+                **identity(opened), "round_id": opened.get("round_id"), "question_token": None, "selection_revision": 2})
+            if questions is not None and not questions.get("questions"):
+                self.fail(f"{quiz}: no questions for {item['path']}")
 
 
 def export_snapshot(directory: Path) -> dict[str, tuple[int, int]]:
@@ -263,6 +315,7 @@ def main() -> int:
     test = SmokeTest(base_url)
     try:
         test.check_static()
+        test.bootstrap()
         catalog = test.examples()
         crystals = catalog.get("crystal", [])
         molecules = catalog.get("molecule", [])
@@ -274,8 +327,8 @@ def main() -> int:
         test.convert_cells(some_crystals)
         test.import_files(root, some_crystals, some_molecules)
         test.check_newlines()
-        test.check_quizzes(molecules[0] if molecules else None)
         test.check_gif()
+        test.check_quizzes(catalog)
     finally:
         process.terminate()
         try:

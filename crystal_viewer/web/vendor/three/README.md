@@ -15,7 +15,8 @@ Version: **0.185.1**.
 
 One local change: `TrackballControls.js` imports `from 'three';`, a bare module
 name that a browser cannot resolve without an import map. It is rewritten to
-`from '/vendor/three/three.module.js';` in the bundled file.
+`from '/vendor/three/three.module.js';`. The server used to make this change on
+every request; it is now done once, here.
 
 To upgrade, fetch the package (for example `npm pack three@<version>` and
 unpack it), copy the three files over these, apply the same one-line change,

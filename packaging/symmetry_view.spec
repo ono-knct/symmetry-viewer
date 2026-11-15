@@ -58,7 +58,6 @@ a = Analysis(
         "bibtexparser",
         "palettable",
         # Development only: the PyVista reference renderer and its GUI.
-        "crystal_viewer.viewer.pyvista_controller",
         "crystal_viewer.viewer.native_gui",
         "pyvista",
         "vtk",
@@ -72,7 +71,7 @@ a = Analysis(
 
 # Linux: manylinux wheels link against the system's libstdc++ and libgcc_s
 # instead of carrying their own, so PyInstaller copies them from the build
-# machine. Those copies need that machine's glibc and
+# machine. Those copies need that machine's glibc (2.38 on the first build) and
 # would stop the program from starting on older distributions. Every desktop
 # Linux has both libraries already; without them the build needs glibc 2.27 and
 # GLIBCXX 3.4.22. No such files on Windows.

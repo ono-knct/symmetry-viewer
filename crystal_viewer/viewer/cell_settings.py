@@ -33,6 +33,7 @@ def standardized_payload(
     angle_tolerance: float = 5.0,
     tolerance_cart: float = 1e-2,
     require_distinct: bool = False,
+    include_frame_witness: bool = False,
 ) -> dict | None:
     """Return a full crystal payload reanalyzed in the requested cell setting."""
     normalized = _normalized_cell_setting(cell_setting)
@@ -55,14 +56,20 @@ def standardized_payload(
         if lattice is not None:
             metadata["display_lattice_parameters"] = _lattice_parameters(np.asarray(lattice, dtype=float))
         converted["render_data"]["metadata"] = metadata
+        if include_frame_witness:
+            from crystal_viewer.viewer.cell_frame import attach_frame_witness
+            attach_frame_witness(payload, converted, symprec=symprec, angle_tolerance=angle_tolerance,
+                                 cell_setting=normalized)
         return converted
 
     render_data = payload.get("render_data") or {}
+    frame_trace = {} if include_frame_witness else None
     structure = standardized_structure_from_render_data(
         render_data,
         normalized,
         symprec=symprec,
         angle_tolerance=angle_tolerance,
+        _frame_trace=frame_trace,
     )
     if structure is None:
         return None
@@ -97,6 +104,10 @@ def standardized_payload(
     metadata["display_cell_setting"] = normalized
     metadata["display_lattice_parameters"] = _lattice_parameters(np.asarray(structure.lattice.matrix, dtype=float))
     metadata["display_atom_count"] = len(converted["render_data"]["atoms"])
+    if include_frame_witness:
+        from crystal_viewer.viewer.cell_frame import attach_frame_witness
+        attach_frame_witness(payload, converted, symprec=symprec, angle_tolerance=angle_tolerance,
+                             cell_setting=normalized, source_analyzer=frame_trace["analyzer"])
     return converted
 
 
@@ -106,6 +117,7 @@ def standardized_structure_from_render_data(
     *,
     symprec: float = 1e-3,
     angle_tolerance: float = 5.0,
+    _frame_trace: dict | None = None,
 ) -> Structure | None:
     """Return a pymatgen Structure in a standardized cell setting."""
     normalized = _normalized_cell_setting(cell_setting)
@@ -124,7 +136,10 @@ def standardized_structure_from_render_data(
             symprec=symprec,
             angle_tolerance=angle_tolerance,
         )
-        return _standardized_structure(analyzer, normalized)
+        result = _standardized_structure(analyzer, normalized)
+        if _frame_trace is not None:
+            _frame_trace["analyzer"] = analyzer
+        return result
     except Exception:
         return None
 

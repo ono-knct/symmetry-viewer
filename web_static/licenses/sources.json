@@ -1,0 +1,206 @@
+{
+  "pyodide": "314.0.7",
+  "core_sha256": "2abdcc2e35208af406e07724cffa85bc582ced97e9028383ecf5462541393f95",
+  "python": "3.14.2",
+  "packages": {
+    "numpy": "2.4.6",
+    "pillow": "12.2.0"
+  },
+  "build_sources": [
+    "https://github.com/pyodide/pyodide/blob/314.0.7/cpython/Makefile",
+    "https://github.com/pyodide/pyodide/blob/314.0.7/Makefile.envs",
+    "https://github.com/pyodide/pyodide/tree/314.0.7/cpython/patches",
+    "https://github.com/pyodide/pyodide-recipes/tree/314-20260911/packages/Pillow",
+    "https://github.com/emscripten-core/emscripten/tree/5.0.3/tools/ports"
+  ],
+  "notices": [
+    {
+      "name": "pyodide",
+      "file": "pyodide.txt",
+      "source": "https://github.com/pyodide/pyodide/tree/314.0.7",
+      "notice_source": "https://github.com/pyodide/pyodide/blob/314.0.7/LICENSE",
+      "sha256": "1f256ecad192880510e84ad60474eab7589218784b9a50bc7ceee34c2b91f1d5"
+    },
+    {
+      "name": "python",
+      "file": "python.txt",
+      "source": "https://github.com/python/cpython/tree/v3.14.2",
+      "notice_source": "https://github.com/python/cpython/blob/v3.14.2/LICENSE",
+      "sha256": "b0e25a78cffb43f4d92de8b61ccfa1f1f98ecbc22330b54b5251e7b6ba010231"
+    },
+    {
+      "name": "stackframe",
+      "file": "stackframe.txt",
+      "source": "https://github.com/pyodide/pyodide/tree/314.0.7",
+      "notice_source": "https://github.com/pyodide/pyodide/blob/314.0.7/src/js/vendor/stackframe/LICENSE",
+      "sha256": "899da9d991cb211a3642b84e82a9ae0b4b4e44546fd207e34d7d4ec2eb40f420"
+    },
+    {
+      "name": "libffi",
+      "file": "libffi.txt",
+      "source": "https://github.com/libffi/libffi/tree/f08493d249d2067c8b3207ba46693dd858f95db3",
+      "notice_source": "https://github.com/libffi/libffi/blob/f08493d249d2067c8b3207ba46693dd858f95db3/LICENSE",
+      "sha256": "2c9c2acb9743e6b007b91350475308aee44691d96aa20eacef8e199988c8c388"
+    },
+    {
+      "name": "hiwire",
+      "file": "hiwire.txt",
+      "source": "https://github.com/pyodide/hiwire/tree/6a1e67280a15d929ebeceee54a6358c9c8d5f697",
+      "notice_source": "https://github.com/pyodide/hiwire/blob/6a1e67280a15d929ebeceee54a6358c9c8d5f697/LICENSE",
+      "sha256": "1f256ecad192880510e84ad60474eab7589218784b9a50bc7ceee34c2b91f1d5"
+    },
+    {
+      "name": "zlib",
+      "file": "zlib.txt",
+      "source": "https://github.com/madler/zlib/tree/v1.3.1",
+      "notice_source": "https://github.com/madler/zlib/blob/v1.3.1/LICENSE",
+      "sha256": "845efc77857d485d91fb3e0b884aaa929368c717ae8186b66fe1ed2495753243"
+    },
+    {
+      "name": "bzip2",
+      "file": "bzip2.txt",
+      "source": "https://github.com/emscripten-ports/bzip2/tree/1.0.6",
+      "notice_source": "https://github.com/emscripten-ports/bzip2/blob/1.0.6/LICENSE",
+      "sha256": "4919cfb14a73cd64fcef67b107613970cf1659a09aa675dba31314f373bc7204"
+    },
+    {
+      "name": "xz",
+      "file": "xz.txt",
+      "source": "https://github.com/xz-mirror/xz/tree/v5.2.2",
+      "notice_source": "https://github.com/xz-mirror/xz/blob/v5.2.2/COPYING",
+      "sha256": "48398016e20f91676c11e50d5066d2668afda3c161a75dcfd47311f52f220f14"
+    },
+    {
+      "name": "zstd",
+      "file": "zstd.txt",
+      "source": "https://github.com/python/cpython-source-deps/tree/zstd-1.5.7",
+      "notice_source": "https://github.com/python/cpython-source-deps/blob/zstd-1.5.7/LICENSE",
+      "sha256": "7055266497633c9025b777c78eb7235af13922117480ed5c674677adc381c9d8"
+    },
+    {
+      "name": "emscripten",
+      "file": "emscripten.txt",
+      "source": "https://github.com/emscripten-core/emscripten/tree/5.0.3",
+      "notice_source": "https://github.com/emscripten-core/emscripten/blob/5.0.3/LICENSE",
+      "sha256": "51aea7641f81d560eb039bc97ce35e2517e2656fe8731eb49ce6a18498eb22fe"
+    },
+    {
+      "name": "musl",
+      "file": "musl.txt",
+      "source": "https://github.com/emscripten-core/emscripten/tree/5.0.3",
+      "notice_source": "https://github.com/emscripten-core/emscripten/blob/5.0.3/system/lib/libc/musl/COPYRIGHT",
+      "sha256": "f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af"
+    },
+    {
+      "name": "libcxx",
+      "file": "libcxx.txt",
+      "source": "https://github.com/emscripten-core/emscripten/tree/5.0.3",
+      "notice_source": "https://github.com/emscripten-core/emscripten/blob/5.0.3/system/lib/libcxx/LICENSE.TXT",
+      "sha256": "539dd7aed86e8a4f12cbdd0e6c50c189c7d74847e4fecc64ce2c6ee3a01da38b"
+    },
+    {
+      "name": "compiler-rt",
+      "file": "compiler-rt.txt",
+      "source": "https://github.com/emscripten-core/emscripten/tree/5.0.3",
+      "notice_source": "https://github.com/emscripten-core/emscripten/blob/5.0.3/system/lib/compiler-rt/LICENSE.TXT",
+      "sha256": "1a8f1058753f1ba890de984e48f0242a3a5c29a6a8f2ed9fd813f36985387e8d"
+    },
+    {
+      "name": "expat",
+      "file": "expat.txt",
+      "source": "https://github.com/python/cpython/tree/v3.14.2",
+      "notice_source": "https://github.com/python/cpython/blob/v3.14.2/Modules/expat/COPYING",
+      "sha256": "122f2c27000472a201d337b9b31f7eb2b52d091b02857061a8880371612d9534"
+    },
+    {
+      "name": "python-notices",
+      "file": "python-notices.rst",
+      "source": "https://github.com/python/cpython/tree/v3.14.2",
+      "notice_source": "https://github.com/python/cpython/blob/v3.14.2/Doc/license.rst",
+      "sha256": "c695d550b135e53e38807e76496d1db17d22c40e461d1f3f354c86188d3305dd"
+    },
+    {
+      "name": "webp",
+      "file": "webp.txt",
+      "source": "https://github.com/webmproject/libwebp/tree/v1.2.2",
+      "notice_source": "https://github.com/webmproject/libwebp/blob/v1.2.2/COPYING",
+      "sha256": "e293d1dddc9785200b1f58a4f5293543cf8566d9e0b8a3c02fad955035b19f42"
+    },
+    {
+      "name": "webp-patents",
+      "file": "webp-patents.txt",
+      "source": "https://github.com/webmproject/libwebp/tree/v1.2.2",
+      "notice_source": "https://github.com/webmproject/libwebp/blob/v1.2.2/PATENTS",
+      "sha256": "cc3273e0694ea5896145e0677699b53471b03ea43021ddc50e7923fbb9f5023c"
+    },
+    {
+      "name": "freetype",
+      "file": "freetype.txt",
+      "source": "https://github.com/freetype/freetype/tree/VER-2-13-3",
+      "notice_source": "https://github.com/freetype/freetype/blob/VER-2-13-3/docs/FTL.TXT",
+      "sha256": "08c135755dd589039470f1fdbb400daaabaaa50d0b366d19cebff4d22986baa1"
+    },
+    {
+      "name": "png",
+      "file": "png.txt",
+      "source": "https://github.com/pnggroup/libpng/tree/v1.6.55",
+      "notice_source": "https://github.com/pnggroup/libpng/blob/v1.6.55/LICENSE",
+      "sha256": "bdb0a645ea18c60507d0368379b1ac5474b92255fcc2d115e07486a7672ba526"
+    },
+    {
+      "name": "tiff",
+      "file": "tiff.txt",
+      "source": "https://github.com/libsdl-org/libtiff/tree/v4.4.0",
+      "notice_source": "https://github.com/libsdl-org/libtiff/blob/v4.4.0/COPYRIGHT",
+      "sha256": "fbd6fed7938541d2c809c0826225fc85e551fdbfa8732b10f0c87e0847acafd7"
+    },
+    {
+      "name": "jpeg",
+      "file": "jpeg.txt",
+      "source": "https://github.com/libjpeg-turbo/ijg/tree/jpeg-9f",
+      "notice_source": "https://github.com/libjpeg-turbo/ijg/blob/jpeg-9f/README",
+      "sha256": "7c25493a9f64fed34d01445467341bda77bc1cdbeccbe33558659ef173fb9ff2"
+    },
+    {
+      "name": "spglib",
+      "file": "spglib.txt",
+      "source": "https://github.com/spglib/spglib/tree/v2.7.0",
+      "notice_source": "https://github.com/spglib/spglib/blob/v2.7.0/COPYING",
+      "sha256": "9c4e602ce15bf48206dad105b666ddaeedba747eeda6465807106bc11f4f587f"
+    },
+    {
+      "name": "sqlite",
+      "file": "sqlite.txt",
+      "source": "https://github.com/sqlite/sqlite/tree/version-3.39.0",
+      "notice_source": "https://github.com/sqlite/sqlite/blob/version-3.39.0/LICENSE.md",
+      "sha256": "9c6479123f32a1ed50d9a0af203dfe8972e65035b0cdeef436b5f8d0924517fe"
+    },
+    {
+      "name": "hacl-header",
+      "file": "hacl-header.txt",
+      "source": "https://github.com/python/cpython/tree/v3.14.2",
+      "notice_source": "https://github.com/python/cpython/blob/v3.14.2/Modules/_hacl/Hacl_Hash_SHA2.c",
+      "extraction": "First complete license comment; unchanged.",
+      "sha256": "998ce04fb8ad9dedb0bc1b44938f8c3dcf1089780fa105ce1c8c30fb5554d78c"
+    },
+    {
+      "name": "LaTeX Project Public License 1.3c",
+      "file": "lppl.txt",
+      "source": "https://www.latex-project.org/lppl/lppl-1-3c/",
+      "notice_source": "https://github.com/latex3/latex2e/blob/main/base/lppl.txt",
+      "git_blob": "cd58edfc22fdae5433e5d3f3ba2c5d052fe37e83",
+      "sha256": "ca3227f672053cb608959d7e1d476c7a13efea11be3f6e53758a68b650c918e8"
+    }
+  ],
+  "vendor_sha256": {
+    "latin-modern-math/GUST-FONT-LICENSE.txt": "2bd69affc3da00715116f713f57eab9707e96daf3562ad0215987b15b9c16f73",
+    "latin-modern-math/MANIFEST-Latin-Modern-Math.txt": "1daa729f7922c42ba5ce8da7dfe4ecdc9e5c878ad86217fd6f32c4671505b007",
+    "latin-modern-math/README-Latin-Modern-Math.txt": "e6fdd5fb44b656146fa988d191f58901c09a347d3f4fbaa3b45b24a6ad7ec30b",
+    "latin-modern-math/latinmodern-math.otf": "6075562b771f8b82f0c179e363389684f2dd09de30038269e2628e504bd7be0f",
+    "three/LICENSE": "8b378ebe60e2fe500158cb0ac71cb5e8b7d92953c2abcc63a0eb90499653b5bc",
+    "three/README.md": "0b8fcbd0434edcbf2f95bb23cc8157a7e9a03ae0dee01cbe91817541152e7935",
+    "three/addons/controls/TrackballControls.js": "ba8fed2d2e334e7e675f8dba81d40e56aabae05675394630049ee0395a16dd26",
+    "three/three.core.js": "3718df126d69c125362a03340913204470d8c50238605150e57f808840fb7759",
+    "three/three.module.js": "bbf5ed13fe4373f5bd38b14ea8e62e9f157327da5638edc6d3863e08b167c9c7"
+  }
+}

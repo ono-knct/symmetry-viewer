@@ -1,30 +1,37 @@
 # symmetry-viewer
 
-結晶・分子の対称性を学ぶための3D教材です。対称操作の記号と原子の動きを対応づけて観察できます。
+結晶・分子の対称性を学ぶ3D教材です。解析モードで対称操作と原子の動きを観察し、
+クイズモードで操作あて・合成・移り先・点群あてを練習できます。
+このソースには結晶16種・分子19種を収録しています。
+Web版では収録例を利用できます。手元のCIF（結晶）・XYZ（分子）ファイルの取り込みは配布版で利用できます。
+Web版の利用環境と作成手順は [Web版の説明書](web_static/README.md) を参照してください。
+画面の操作と困ったときの案内は [使い方](docs/usage.md)、ソースからの起動や配布物の作成は [開発者向け手順](docs/development.md) にまとめています。
 
-- **解析モード**：対称操作を選び、回転軸・鏡映面・対称中心と原子の動きを観察します。
-- **クイズモード**：操作あて・合成・移り先・点群あての問題を通して、対称操作の見方や考え方を練習します。
+## 配布版を使う
 
-結晶16種・分子19種を収録しています。手元のCIF（結晶）やXYZ（分子）も読み込めます。
+Windows版は `symmetry-viewer-windows-x64.zip` を展開し、`symmetry-viewer.exe` を開きます。
+Linux版は `symmetry-viewer-linux-x86_64.tar.gz` を展開し、端末で `./symmetry-viewer` を実行します。
+Pythonなどの追加インストールは不要です。WebGLに対応したブラウザが必要です。
+終了はWindowsでは黒いウィンドウを閉じ、Linuxでは端末でCtrl+Cを押します。
+ブラウザのタブを閉じるだけでは終了しません。詳細は配布物の `README.txt` を参照してください。
 
-## ダウンロード
+## ソースから起動する
 
-| パソコン | ダウンロード |
-|---|---|
-| Windows 10 / 11（64ビット） | [Windows版（ZIP）](https://github.com/ono-knct/symmetry-viewer/releases/latest/download/symmetry-viewer-windows-x64.zip) |
-| Linux（x86_64、glibc 2.27以上） | [Linux版（tar.gz）](https://github.com/ono-knct/symmetry-viewer/releases/latest/download/symmetry-viewer-linux-x86_64.tar.gz) |
+以下はLinuxでの手順です。
 
-Pythonなどの追加インストールは不要です。WebGLに対応したブラウザ（Edge・Chrome・Firefoxなど）で使います。
-Releaseの `Source code` は開発者向けです。
+```bash
+scripts/setup.sh
+scripts/serve.sh
+```
 
-## ドキュメント
+配布物は `packaging/build_linux.sh` または `packaging/build_windows.ps1` でビルドします。
+GitHub Actionsの定義は `.github/workflows/build.yml` です。
 
-- [使い方](docs/usage.md)：起動、基本操作、困ったときの対処
-- [構造データの出典](examples/SOURCES.md)：収録モデルと参照資料
-- [開発者向け手順](docs/development.md)：ソースからの起動と配布物のビルド
+## 収録構造とライセンス
 
-不具合は[Issues](https://github.com/ono-knct/symmetry-viewer/issues)へ報告してください。
+数値・出典・加工内容・配布条件は [examples/SOURCES.md](examples/SOURCES.md) を参照してください。
+分子19種は理想化教材モデルであり、文献の実測・最適化座標をそのまま収録したものではありません。
+NaClはCOD直接取得データから再構成しています。
 
-## ライセンス
-
-プログラムと分子モデル（XYZ）は[MITライセンス](LICENSE)です。構造データの詳細は[出典と配布条件](examples/SOURCES.md)を参照してください。
+プログラムは [MITライセンス](LICENSE)です。同梱ライブラリのライセンス文書は配布物の `_internal/licenses/` にあります。
+Web版では、作成物の `licenses/README.md` に使用部品のライセンスとソースの取得先をまとめています。

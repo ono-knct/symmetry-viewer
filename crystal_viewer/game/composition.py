@@ -5,8 +5,8 @@ operation equal to "A then B" (the product B∘A). The classic insight — two m
 planes compose to a rotation, a rotation and a mirror compose to another mirror —
 is the point of the quiz.
 
-Renderer-independent: consumes ``render_data`` only. The composition maths is the
-same the analysis mode uses (``symmetry_operations``), and the product is named
+Renderer-independent: consumes ``render_data`` only. Quiz composition uses the
+legacy ``symmetry_operations`` implementation, and the product is named
 with the same vocabulary as the operation-identify quiz (``operation_identify``),
 so judging stays single-source.
 

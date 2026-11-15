@@ -1,4 +1,6 @@
-# Runtime dependencies for the Web viewer (scripts/serve.sh).
+# Dependencies for the browser viewer started by scripts/serve.sh.
+# Optional desktop rendering: requirements-pyvista.txt.
+# Distribution builds use the pinned versions in packaging/requirements-build.txt.
 numpy>=1.26
 pymatgen>=2024.5
 spglib>=2.4

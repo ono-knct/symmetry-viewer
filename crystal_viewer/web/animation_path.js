@@ -54,25 +54,6 @@ function multiplyMatrixVector(matrix, vector) {
   return matrix.map(row => dot(row, vector));
 }
 
-function multiplyRowVectorMatrix(vector, matrix) {
-  return matrix[0].map((_, column) =>
-    vector.reduce((sum, value, row) => sum + value * matrix[row][column], 0));
-}
-
-export function applyBoundaryContext(position, context) {
-  if (!context || context.mode !== "wrap") return [...position];
-  let cell = multiplyRowVectorMatrix(position, context.cart_to_cell);
-  const epsilon = Number(context.boundary_epsilon ?? 1e-9);
-  if (context.cell_origin_mode === "corner") {
-    cell = cell.map(value => value - Math.floor(value));
-    cell = cell.map(value => value >= 1 - epsilon ? value - 1 : value);
-  } else {
-    cell = cell.map(value => value - Math.floor(value + 0.5));
-    cell = cell.map(value => value >= 0.5 - epsilon ? value - 1 : value);
-  }
-  return multiplyRowVectorMatrix(cell, context.cell_to_cart);
-}
-
 export function pathAppliesToDisplayInstance(path, instance) {
   return Boolean(path) && (!path.unit_cell_only || Boolean(instance.isPrimaryImage));
 }
@@ -290,4 +271,42 @@ export function evaluatePath(path, progress, startOverride = null) {
     target = add(target, subtract(start, path.start));
   }
   return interpolate(start, target, s);
+}
+
+// Explicit API1 quiz compatibility only. Current API2 quizzes obtain a single
+// verified composed plan from QuizSession and never synthesize legacy paths.
+export function legacyQuizDurationMs(sequence = false) {
+  return sequence ? 3200 : 1600;
+}
+
+export async function loadLegacyQuizComposition(fetchSnapshot, question, isCurrent) {
+  const first = await fetchSnapshot(question.operation_index_a);
+  if (!isCurrent() || !first) return null;
+  const second = await fetchSnapshot(question.operation_index_b);
+  if (!isCurrent() || !second) return null;
+  return combineLegacyQuizSnapshots(first, second);
+}
+
+function combineLegacyQuizSnapshots(first, second) {
+  const paths = new Map();
+  for (const [sourceAtom, firstPath] of first.paths) {
+    const secondPath = second.paths.get(sourceAtom);
+    if (!secondPath) throw new Error("操作A・Bの原子の対応を読み込めませんでした。");
+    // Sequential evaluation starts B at A's endpoint, including each periodic
+    // display image. Equal weights keep the existing midpoint slider boundary.
+    paths.set(sourceAtom, {
+      type: "sequential",
+      segments: [firstPath, secondPath],
+      segment_weights: [1, 1],
+      unit_cell_only: firstPath.unit_cell_only || secondPath.unit_cell_only,
+    });
+  }
+  const representativePath = paths.values().next().value;
+  return {
+    ...first,
+    paths,
+    breakpoints: representativePath ? pathBreakpoints(representativePath) : [0, 0.5, 1],
+    maxTravel: first.maxTravel + second.maxTravel,
+    durationSeconds: first.durationSeconds + second.durationSeconds,
+  };
 }

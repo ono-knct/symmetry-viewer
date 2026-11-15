@@ -2,8 +2,9 @@
 
 The structure itself is shown, bare -- no highlighted axis or animation, the same
 way the structure picker renders it -- and the player names its overall point
-group from a small multiple-choice list. This is a single
-question per structure: the whole structure's own symmetry class,
+group from a small multiple-choice list. Unlike the other four quizzes, which
+each ask about one axis, operation, product or atom, this is a single
+capstone question per structure: the whole structure's own symmetry class,
 already known from ``render_data["metadata"]["point_group_label"]``. The only
 geometry computed here is the check that a crystal's drawn cell actually looks
 like that point group (``_displayed_point_group``).
@@ -16,8 +17,11 @@ so a crystal question must not offer a Schoenflies distractor and vice versa.
 Both vocabularies are described by the same small table of standard
 group-theory facts (order, highest proper rotation, and a notational "shape"
 family such as "has a horizontal mirror" vs "has diagonal mirrors"), and
-distractors are the closest entries by those facts. Pairs such as D3h/D3d or
-C2v/C2h are selected because they differ in exactly one of these properties.
+distractors are the closest entries by those facts. This is deliberately not a
+hand-curated table of confusable pairs (avoid
+hand-written exclusion/pairing lists): classic confusions like D3h vs D3d or
+C2v vs C2h fall out on their own because those pairs differ in exactly one of
+these properties.
 """
 
 from __future__ import annotations
@@ -106,36 +110,60 @@ _CRYSTAL_PROPS: dict[str, _PointGroupProps] = {
 
 _DISTRACTOR_COUNT = 3
 
-# Human-readable gloss for each notational family, reusing exactly the facts
-# already in _PointGroupProps -- no new geometry, just naming what "family"
-# already encodes (see the module docstring). Used to build a short post-answer
-# explanation.
-_FAMILY_DESCRIPTIONS: dict[str, str] = {
-    "C": "回転軸だけを持つ",
-    "Cs": "鏡映面を1枚持つだけ",
-    "Ci": "反転中心だけを持つ",
-    "Cv": "主軸を含む鏡映面（縦の鏡映面）を持つ",
-    "Ch": "主軸に垂直な鏡映面（水平の鏡映面）を持つ",
-    "D": "主軸に垂直な2回軸を持つ",
-    "Dh": "主軸に垂直な2回軸と、水平の鏡映面を持つ",
-    "Dd": "主軸に垂直な2回軸と、対角の鏡映面を持つ",
-    "S": "回映軸だけを持つ",
-    "cubic": "複数の高次回転軸を持つ立方対称",
-    "icosahedral": "5回軸を持つ正20面体対称",
+# Post-answer gloss: the symmetry elements a learner can look for in the view
+# (axes, mirror planes, inversion centre), keyed by Schoenflies label. Standard
+# textbook facts, not project-specific geometry.
+_ELEMENT_DESCRIPTIONS: dict[str, str] = {
+    "C1": "恒等以外の対称要素なし",
+    "Cs": "鏡映面1枚だけ",
+    "Ci": "反転中心だけ",
+    "C2": "2回軸1本だけ",
+    "C3": "3回軸1本だけ",
+    "C4": "4回軸1本だけ",
+    "C6": "6回軸1本だけ",
+    "C2v": "2回軸1本と、それを含む鏡映面2枚",
+    "C3v": "3回軸1本と、それを含む鏡映面3枚",
+    "C4v": "4回軸1本と、それを含む鏡映面4枚",
+    "C6v": "6回軸1本と、それを含む鏡映面6枚",
+    "C2h": "2回軸1本と、それに垂直な鏡映面1枚（反転中心あり）",
+    "C3h": "3回軸1本と、それに垂直な鏡映面1枚",
+    "C4h": "4回軸1本と、それに垂直な鏡映面1枚（反転中心あり）",
+    "C6h": "6回軸1本と、それに垂直な鏡映面1枚（反転中心あり）",
+    "D2": "互いに垂直な2回軸3本",
+    "D3": "3回軸1本と、それに垂直な2回軸3本",
+    "D4": "4回軸1本と、それに垂直な2回軸4本",
+    "D6": "6回軸1本と、それに垂直な2回軸6本",
+    "D2h": "互いに垂直な2回軸3本と鏡映面3枚（反転中心あり）",
+    "D3h": "3回軸1本、それに垂直な2回軸3本、軸に垂直な鏡映面1枚、軸を含む鏡映面3枚",
+    "D4h": "4回軸1本、それに垂直な2回軸4本、軸に垂直な鏡映面1枚、軸を含む鏡映面4枚（反転中心あり）",
+    "D6h": "6回軸1本、それに垂直な2回軸6本、軸に垂直な鏡映面1枚、軸を含む鏡映面6枚（反転中心あり）",
+    "D2d": "S₄軸1本（2回軸を兼ねる）、それに垂直な2回軸2本、2回軸の間を通る鏡映面2枚",
+    "D3d": "3回軸1本、それに垂直な2回軸3本、2回軸の間を通る鏡映面3枚（反転中心あり）",
+    "S4": "S₄軸1本だけ（2回軸を兼ねる）",
+    "S6": "S₆軸1本だけ（3回軸を兼ねる。反転中心あり）",
+    "T": "3回軸4本と2回軸3本",
+    "Td": "3回軸4本、S₄軸3本（2回軸を兼ねる）、鏡映面6枚",
+    "Th": "3回軸4本、2回軸3本、鏡映面3枚（反転中心あり）",
+    "O": "4回軸3本、3回軸4本、2回軸6本",
+    "Oh": "4回軸3本、3回軸4本、2回軸6本、鏡映面9枚（反転中心あり）",
+    "I": "5回軸6本、3回軸10本、2回軸15本",
+    "Ih": "5回軸6本、3回軸10本、2回軸15本、鏡映面15枚（反転中心あり）",
+    "C∞v": "分子軸（∞回軸）と、それを含む無数の鏡映面",
+    "D∞h": "分子軸（∞回軸）、それを含む無数の鏡映面、それに垂直な鏡映面1枚と無数の2回軸（反転中心あり）",
 }
+
+# Crystals name improper axes as rotoinversions, like the rest of the crystal UI.
+_CRYSTAL_TERMS = (("S₄軸", "4回回反軸"), ("S₆軸", "3回回反軸"))
 
 
 def _explanation(symbol: str, table: dict[str, _PointGroupProps]) -> str:
-    """A one-line gloss of why this point group looks the way it does."""
-    props = table[symbol]
-    family_text = _FAMILY_DESCRIPTIONS.get(props.family, "")
-    if props.order >= _INFINITE_ORDER:
-        parts = ["位数は無限（直線分子）", "主軸まわりに無限回対称"]
-    else:
-        parts = [f"位数{props.order}", f"最高固有回転は{props.principal_order}回"]
-    if family_text:
-        parts.append(family_text)
-    return "、".join(parts) + "。"
+    """The point group's symmetry elements, in one short line."""
+    crystal = table is _CRYSTAL_PROPS
+    text = _ELEMENT_DESCRIPTIONS[_HM_TO_SCHOENFLIES[symbol] if crystal else symbol]
+    if crystal:
+        for old, new in _CRYSTAL_TERMS:
+            text = text.replace(old, new)
+    return text + "。"
 
 
 def _order_scale(order: int) -> float:

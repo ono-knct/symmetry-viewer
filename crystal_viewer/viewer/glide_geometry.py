@@ -61,6 +61,3 @@ def align_fractional_vector_to_reference(
         if best is None or score[:2] < best[:2]:
             best = score
     return vector_frac if best is None else best[2]
-
-def periodic_shift_vectors(radius: int) -> np.ndarray:
-    return periodic_shifts(radius)

@@ -11,6 +11,7 @@ from crystal_viewer.geometry import integer_index_vector, normalize, signed_rota
 from crystal_viewer.itc_tables import itc_coordinate_summaries
 from crystal_viewer.viewer.animation import animation_paths
 from crystal_viewer.viewer.animation_path import effective_rotation_axis
+from crystal_viewer.viewer.animation_path import decomposition_elements, improper_rotation_angle
 from crystal_viewer.viewer.display_atoms import display_point_cart, display_scene_center
 from crystal_viewer.viewer.glide_geometry import centered_fractional_vector, glide_translation_frac
 from crystal_viewer.viewer.operation_lookup import selected_elements, selected_mapping
@@ -69,9 +70,225 @@ def operation_summaries(
                 "matrix_cart": operation.get("matrix_cart"),
                 "translation_cart": operation.get("translation_cart"),
                 "fixed_atom_indices": operation_fixed_atom_indices(render_data, operation),
+                "presentations": operation_presentations(render_data, operation, axes, planes, centers),
             }
         )
+    add_direction_families(render_data, summaries)
     return summaries
+
+
+def operation_presentations(render_data, operation, axes, planes, centers):
+    """Override conventional notation only when the decomposition changes."""
+    kind = str(operation.get("kind", ""))
+    improper = any(word in kind for word in ("improper", "rotoinversion", "rotoreflection"))
+    crystal = bool(render_data.get("unit_cell"))
+    result = {}
+    for mode in ("rotoinversion", "rotoreflection"):
+        changed = ((mode == "rotoinversion" and (kind == "mirror" or "glide" in kind or improper and not crystal))
+                   or (mode == "rotoreflection" and (kind == "inversion" or improper and crystal)))
+        if not changed:
+            continue
+        axis, plane, center = decomposition_elements(
+            operation, axes[0] if axes else None, planes[0] if planes else None,
+            centers[0] if centers else None, mode, render_data,
+        )
+        if crystal and axis is not None:
+            # The printed line and its rotation sense must use the same axis
+            # orientation, just as Default's ITC-like notation does.
+            lattice = np.asarray(render_data["unit_cell"]["lattice"], dtype=float)
+            direction = _itc_direction(np.asarray(axis["direction_cart"]) @ lattice_inverse(render_data["unit_cell"]))
+            if direction is not None:
+                axis = {**axis, "direction_cart": normalize(direction @ lattice)}
+        angle_rad = improper_rotation_angle(operation, axis, mode)
+        if angle_rad is None:
+            continue
+        angle = abs(float(np.degrees(angle_rad)))
+        fraction = Fraction(angle / 360).limit_denominator(120) if angle > 1e-5 else Fraction(1, 1)
+        order, power = fraction.denominator, fraction.numerator
+        symbol = f"-{order}" if mode == "rotoinversion" else f"S{order}"
+        if power > 1:
+            symbol += f"^{power}"
+        reading = (f"{order}回" if order >= 2 else "") + ("回反" if mode == "rotoinversion" else "回映")
+        translation_label = ""
+        if "glide" in kind:
+            symbol += "+t"
+            reading += "＋並進"
+            vector = glide_intrinsic_translation_frac(operation)
+            if vector is not None:
+                translation_label = fractional_vector_label(vector)
+        notes = []
+        if kind == "inversion" and mode == "rotoreflection":
+            direction_name = "c方向" if crystal else "読込時のz方向"
+            notes.append(f"分解用の軸は、反転中心を通る{direction_name}の軸。反転を回映に分解する軸は一意に決まらない。")
+        if (kind == "mirror" or "glide" in kind) and mode == "rotoinversion":
+            notes.append("分解用の反転中心は、座標原点から対象の面へ垂線を下ろした点。鏡映を回反に分解する反転中心は一意に決まらない。")
+        result[mode] = {"symbol": symbol, "reading": reading,
+                        "geometry": decomposition_position(render_data, axis, plane, center, mode),
+                        "translation_label": translation_label,
+                        "notes": notes, "angle_deg": angle,
+                        "rotation_angle_deg": float(np.degrees(angle_rad)),
+                        "notation_order": order, "type_rank": 6}
+    return result
+
+
+def decomposition_position(render_data, axis, plane, center, mode):
+    """Use Default's coordinate spelling; molecular cards stay symbol-only."""
+    unit_cell = render_data.get("unit_cell")
+    if not unit_cell or axis is None:
+        return ""
+    inverse = lattice_inverse(unit_cell)
+    point = np.asarray(axis["point_cart"], dtype=float) @ inverse
+    direction = _itc_direction(np.asarray(axis["direction_cart"]) @ inverse)
+    if direction is None:
+        return ""
+    parts = [_itc_line(point, direction)]
+    if mode == "rotoinversion" and center is not None:
+        centre = np.asarray(center["point_cart"]) @ inverse
+        parts.append(", ".join(_itc_coord_str(float(value), []) for value in centre))
+    elif mode == "rotoreflection" and plane is not None:
+        normal = np.asarray(unit_cell["lattice"]) @ np.asarray(plane["normal_cart"])
+        basis = _itc_plane_basis(_itc_null_space(normal.reshape(1, 3)))
+        if len(basis) == 2 and all(abs(np.dot(normal, vector)) < 1e-7 * np.linalg.norm(normal) * np.linalg.norm(vector) for vector in basis):
+            parts.append(_itc_plane(np.asarray(plane["point_cart"]) @ inverse, basis))
+        else:
+            # A chosen S2 plane in an oblique cell need not have rational
+            # Miller indices. Keep its numeric coefficients instead of
+            # rounding it to a different crystallographic plane.
+            point = np.asarray(plane["point_cart"]) @ inverse
+            pivot = int(np.argmax(np.abs(normal)))
+            terms = []
+            for index in range(3):
+                if index == pivot:
+                    continue
+                coefficient = -normal[index] / normal[pivot]
+                if abs(coefficient) > 1e-8:
+                    terms.append(f"{coefficient:+.8f}".rstrip("0").rstrip(".") + "xyz"[index])
+            constant = float(np.dot(normal, point) / normal[pivot])
+            if abs(constant) > 1e-8:
+                terms.append(f"{constant:+.8f}".rstrip("0").rstrip("."))
+            coordinates = list("xyz")
+            coordinates[pivot] = "".join(terms).lstrip("+") or "0"
+            parts.append(", ".join(coordinates))
+    return "; ".join(parts)
+
+
+def _integer_index_vectors(vectors: list[np.ndarray]) -> list[tuple[int, ...] | None]:
+    """Batch the scalar index rule, preserving its errors and first best limit.
+
+    Keep the scalar norm calculation: a different reduction order at a tie or
+    tolerance boundary could choose a different candidate. Exact residuals
+    reuse that scalar result only within this call.
+    """
+    if not vectors:
+        return []
+    values = np.asarray(vectors, dtype=float)
+    max_abs = np.max(np.abs(values), axis=1)
+    active = np.flatnonzero(~(max_abs < 1e-10))
+    scaled = values[active] / max_abs[active, None]
+    best = np.zeros(scaled.shape, dtype=int)
+    best_error = np.full(len(active), float("inf"))
+    norms = {}
+    for limit in range(1, 13):
+        candidate = np.rint(scaled * limit).astype(int)
+        normalized = candidate / np.maximum(np.max(np.abs(candidate), axis=1), 1.)[:, None]
+        errors = []
+        for residual in normalized - scaled:
+            key = residual.tobytes()
+            if key not in norms:
+                norms[key] = float(np.linalg.norm(residual))
+            errors.append(norms[key])
+        error = np.asarray(errors)
+        better = np.any(candidate, axis=1) & (error < best_error)
+        best[better] = candidate[better]
+        best_error[better] = error[better]
+    result = [None] * len(vectors)
+    for index, row, error in zip(active, best, best_error):
+        if not np.any(row) or error > 1e-5:
+            continue
+        divisor = int(np.gcd.reduce(np.abs(row[np.nonzero(row)])))
+        if divisor > 1:
+            row = row // divisor
+        for value in row:
+            if value < 0:
+                row = -row
+                break
+            if value > 0:
+                break
+        result[index] = tuple(int(value) for value in row)
+    return result
+
+
+def add_direction_families(render_data: dict, summaries: list[dict]) -> None:
+    """Group unoriented axes, plane normals and translations by the point group.
+
+    Directions transform by W, Miller indices by inverse(W).T. Translations
+    of the space-group operations do not change either family. Keep the three
+    types separate, including when they have the same representative indices.
+    """
+    if not render_data.get("unit_cell"):
+        return
+    rotations = {
+        tuple(np.asarray(op["matrix_frac"], dtype=float).ravel())
+        for op in render_data["operations"]
+    }
+    matrices = [np.asarray(values).reshape(3, 3) for values in rotations]
+    reciprocal = [np.linalg.inv(matrix).T for matrix in matrices]
+    # Preserve each original matrix-vector product; batch only the index rule.
+    # All sharing is local and uses exact bits, including signed zeros.
+    transformed = []
+    transformed_indices = {}
+    orbits = {}
+    directions = {}
+    for summary in summaries:
+        direction = summary["direction_sort_key"]
+        if direction in directions or direction in ("none", "center", ""):
+            continue
+        kind, indices = direction.split(":", 1)
+        vector = np.asarray([float(value) for value in indices.replace(",", " ").split()])
+        orbit_key = (kind == "plane", vector.tobytes())
+        if orbit_key not in orbits:
+            members = []
+            for matrix in reciprocal if kind == "plane" else matrices:
+                member = matrix @ vector
+                key = member.tobytes()
+                if key not in transformed_indices:
+                    transformed_indices[key] = len(transformed)
+                    transformed.append(member)
+                members.append(transformed_indices[key])
+            orbits[orbit_key] = members
+        directions[direction] = kind, orbits[orbit_key]
+    indexed = _integer_index_vectors(transformed)
+    labels = {}
+    families = {}
+    for summary in summaries:
+        direction = summary["direction_sort_key"]
+        if direction not in families:
+            if direction in ("none", "center", ""):
+                families[direction] = (direction, direction)
+            else:
+                kind, members = directions[direction]
+                orbit = {indexed[index] for index in members if indexed[index] is not None}
+                # Prefer small, positive, leading indices: cubic <100>, <110>,
+                # <111>. Use the entire orbit, not just directions in the list.
+                if not orbit:
+                    # Preserve a non-indexable direction without inventing a
+                    # low-index family (possible with imported coordinates).
+                    families[direction] = (direction, summary["direction_label"])
+                    summary["direction_family_key"], summary["direction_family_label"] = families[direction]
+                    continue
+                representative = min(orbit, key=lambda v: (
+                    sum(x * x for x in v), sum(x < 0 for x in v), tuple(-x for x in v)
+                ))
+                key = kind + ":" + " ".join(str(value) for value in representative)
+                brackets = ("{", "}") if kind == "plane" else ("⟨", "⟩")
+                label_key = (brackets, representative)
+                if label_key not in labels:
+                    labels[label_key] = integer_index_label(np.asarray(representative), bracket=brackets)
+                label = labels[label_key]
+                if kind == "translation":
+                    label = "Translation " + label
+                families[direction] = (key, label)
+        summary["direction_family_key"], summary["direction_family_label"] = families[direction]
 
 
 def minimal_operation_summaries(render_data: dict) -> list[dict]:
@@ -94,6 +311,8 @@ def minimal_operation_summaries(render_data: dict) -> list[dict]:
                 "direction_sort_key": "",
                 "direction_label": "",
                 "direction_filter_label": "",
+                "direction_family_key": "",
+                "direction_family_label": "",
                 "matrix_frac": operation.get("matrix_frac"),
                 "translation_frac": operation.get("translation_frac"),
                 "matrix_cart": operation.get("matrix_cart"),
@@ -415,19 +634,20 @@ def _itc_coord_str(const: float, terms: list[tuple[float, str]]) -> str:
             parts.append(f"({c}){name}")
 
     c_val = float(const)
-    c_frac = crystallographic_fraction(c_val) or Fraction(0)
-    has_const = abs(float(c_frac)) > 1e-8
+    c_frac = crystallographic_fraction(c_val, tol=1e-7)
+    c_text = str(c_frac) if c_frac is not None else f"{c_val:.8f}".rstrip("0").rstrip(".")
+    has_const = abs(c_val) > 1e-8
 
     # str(Fraction), not format_fraction: that one wraps 1 to 0 for cell coordinates,
     # while an element location keeps constants such as x+1 or -x+3/2.
     if not parts:
-        return str(c_frac) if has_const else "0"
+        return c_text if has_const else "0"
 
     result = parts[0]
     for p in parts[1:]:
         result += p if p.startswith("-") else "+" + p
     if has_const:
-        result += f"+{c_frac}" if c_frac > 0 else str(c_frac)
+        result += f"+{c_text}" if c_val > 0 else c_text
     return result
 
 
@@ -787,20 +1007,6 @@ def operation_focus_point_cart(
     if centers:
         return display_point_cart(render_data, centers[0]["point_cart"], display_mode, cell_origin_mode)
     return display_scene_center(render_data, display_mode, cell_origin_mode)
-
-
-def custom_focus_point_cart(
-    result: dict,
-    render_data: dict,
-    display_mode: str,
-    cell_origin_mode: str = "center",
-) -> np.ndarray | None:
-    elements = result.get("elements") or {}
-    for key in ("axes", "planes", "centers"):
-        items = elements.get(key) or []
-        if items:
-            return display_point_cart(render_data, items[0]["point_cart"], display_mode, cell_origin_mode)
-    return None
 
 
 def visual_translation_direction_cart(

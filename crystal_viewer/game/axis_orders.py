@@ -200,14 +200,6 @@ def axis_questions(
     return questions
 
 
-def rotation_axis_questions(
-    render_data: dict,
-    *,
-    options: tuple[int, ...] = ROTATION_ORDER_OPTIONS,
-) -> list[dict]:
-    return axis_questions(render_data, "rotation", options=options)
-
-
 def public_questions(
     render_data: dict,
     kind: str = "rotation",

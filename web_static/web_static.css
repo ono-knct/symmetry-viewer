@@ -1,0 +1,28 @@
+/* Static web version only (web_static/build.py). */
+
+/* Importing a CIF/XYZ needs pymatgen/spglib; the downloadable version has it. */
+#cif-file,
+#import-cif,
+#molecule-file,
+#import-molecule {
+  display: none !important;
+}
+
+.web-static-banner {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 10000;
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: rgba(20, 24, 32, 0.92);
+  color: #f3f5f8;
+  font-size: 14px;
+  line-height: 1.5;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
+.web-static-banner.failed {
+  background: #8a1f1f;
+}

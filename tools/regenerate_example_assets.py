@@ -6,9 +6,10 @@ from pathlib import Path
 
 import _bootstrap  # noqa: F401
 
-from crystal_viewer.export_pipeline import default_json_output_path, export_analysis_to_json
+from crystal_viewer.export_pipeline import default_json_output_path, export_legacy_analysis_to_json as export_analysis_to_json
 from crystal_viewer.game.catalog import beyond_quiz_vocabulary, puzzle_counts
 from crystal_viewer.source_kinds import SOURCE_KIND_CRYSTAL, SOURCE_KIND_MOLECULE
+from update_quiz_availability import availability_for
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -40,7 +41,7 @@ def main() -> int:
         default=None,
         help=(
             "Regenerate only these files instead of globbing the example directories. "
-            "Repeatable."
+            "Repeatable. Processes only the explicitly selected CIF/XYZ files."
         ),
     )
     parser.add_argument(
@@ -129,6 +130,8 @@ def regenerate_kind(
             # ...and withholds it entirely when it carries symmetry no quiz can
             # name, which the question counts alone would not reveal.
             "beyond_quiz_vocabulary": beyond_quiz_vocabulary(payload["render_data"]),
+            # Playable quiz/difficulty pairs from the live quiz generators.
+            "quiz_availability": availability_for(output_path),
         }
         items.append(item)
         # Say the flag out loud: a structure dropping out of every quiz is

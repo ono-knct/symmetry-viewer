@@ -34,7 +34,6 @@ from crystal_viewer.export_pipeline import (
 from crystal_viewer.json_export import EXPORT_SCHEMA_VERSION, to_jsonable
 from crystal_viewer.source_kinds import (
     SOURCE_KIND_CRYSTAL,
-    SOURCE_KIND_EMPTY,
     SOURCE_KIND_MOLECULE,
     normalize_source_kind,
 )
@@ -43,10 +42,10 @@ from crystal_viewer.symmetry_operations import (
     find_matching_operation_index,
     find_operation_sequence_bfs,
 )
-from crystal_viewer.viewer.atom_style import atom_color, display_atom_radius
 from crystal_viewer.viewer.animation_context import animation_paths
 from crystal_viewer.viewer.animation_path import evaluate_path, phase_fraction, two_phase_geometry
-from crystal_viewer.viewer.display_atoms import display_atom_instances, display_fractional_bounds, display_scene_center
+from crystal_viewer.viewer.display_atoms import display_fractional_bounds
+from crystal_viewer.viewer.cell_placement import placement_choices, translated_payload
 from crystal_viewer.viewer.animation_api import (
     animation_path_response,
     custom_animation_path_response,
@@ -70,7 +69,6 @@ from crystal_viewer.viewer.custom_operation import (
     custom_operation_visuals,
 )
 from crystal_viewer.web.browser_ui import HTML
-from crystal_viewer.viewer.operation_labels import atom_frac_label
 from crystal_viewer.viewer.operation_lookup import operation_by_index, selected_mapping
 from crystal_viewer.viewer.render_state import (
     apply_render_state_update,
@@ -78,6 +76,11 @@ from crystal_viewer.viewer.render_state import (
     preserved_render_state,
 )
 from crystal_viewer.viewer.session import ViewerSession
+from crystal_viewer.viewer.cell_setting_cache import CellSettingCache, conversion_key, read_precomputed_cell
+
+from crystal_viewer.viewer.model_helpers import (
+    custom_operation_tolerance, empty_viewer_payload, atom_api_items, atom_render_style_items, display_atom_api_items, display_unit_cell_api_item, update_view_coordinate_state,
+)
 
 logging.getLogger("pyvista").setLevel(logging.ERROR)
 logging.getLogger("vtkmodules").setLevel(logging.ERROR)
@@ -104,8 +107,6 @@ DEFAULT_BROWSER_IMPORT_JSON_DIR = (
 WORKER_FLAG = "--worker"
 DEFAULT_ANALYSIS_TIMEOUT_SEC = 120.0
 MAX_REQUEST_BODY_BYTES = 128 * 1024 * 1024
-CUSTOM_OPERATION_TOLERANCE_MIN = 0.001
-CUSTOM_OPERATION_TOLERANCE_MAX = 2.0
 EXAMPLE_DIRS = {
     SOURCE_KIND_CRYSTAL: PROJECT_ROOT / "examples/cif",
     SOURCE_KIND_MOLECULE: PROJECT_ROOT / "examples/molecules",
@@ -115,33 +116,11 @@ EXAMPLE_SUFFIXES = {
     SOURCE_KIND_MOLECULE: ".xyz",
 }
 EXAMPLE_CATALOG_PATH = PROJECT_ROOT / "examples/example_catalog.json"
-# Opened when the server is started without a file. Each must be an export of a
-# bundled example; f2_pd and jacobsite used to sit here long after the examples
-# they came from were removed.
-DEFAULT_STARTER_PATHS = (
-    Path("exports/json/halite.json"),
-    Path("exports/json/benzene.json"),
-    Path("exports/json/water.json"),
-)
 EMPTY_VIEWER_JSON_PATH = Path(tempfile.gettempdir()) / "symmetry_view_empty.json"
 DEBUG_IMPORT_TIMING = os.environ.get("CRYSTAL_VIEWER_DEBUG_IMPORT") == "1"
 _EXAMPLE_CATALOG_CACHE: dict[str, list[dict]] | None = None
 
 
-def custom_operation_tolerance(value: object) -> tuple[float | None, str | None]:
-    """Parse the browser's Custom Operation tolerance without accepting NaN/Inf."""
-    try:
-        tolerance = float(value)
-    except (TypeError, ValueError) as exc:
-        return None, f"Tolerance must be a number: {exc}"
-    if not np.isfinite(tolerance):
-        return None, "Tolerance must be a finite number"
-    if not CUSTOM_OPERATION_TOLERANCE_MIN <= tolerance <= CUSTOM_OPERATION_TOLERANCE_MAX:
-        return None, (
-            "Tolerance must be between "
-            f"{CUSTOM_OPERATION_TOLERANCE_MIN:g} and {CUSTOM_OPERATION_TOLERANCE_MAX:g} Å"
-        )
-    return tolerance, None
 
 
 def custom_operation_matrix_error(W_frac: object, t_frac: object) -> str | None:
@@ -169,60 +148,6 @@ def replace_shared_state_for_load(shared_state: dict, next_state: dict, request_
     shared_state.update(next_state)
 
 
-def empty_viewer_payload() -> dict:
-    return {
-        "schema_version": EXPORT_SCHEMA_VERSION,
-        "source_kind": SOURCE_KIND_EMPTY,
-        "structure_loaded": False,
-        "render_data": {
-            "metadata": {
-                "mode": SOURCE_KIND_EMPTY,
-                "source_file": "",
-                "formula": "No structure",
-                "symmetry_label": "",
-                "operation_count": 1,
-            },
-            "atoms": [],
-            "asymmetric_atoms": [],
-            "operations": [
-                {
-                    "index": 0,
-                    "label": "0: load a structure",
-                    "kind": "identity",
-                    "order": 1,
-                    "angle_deg": 0.0,
-                    "symbol": "load",
-                    "matrix_frac": None,
-                    "translation_frac": None,
-                    "matrix_cart": [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
-                    "translation_cart": [0.0, 0.0, 0.0],
-                }
-            ],
-            "axes": [],
-            "planes": [],
-            "centers": [],
-            "unit_cell": None,
-            "bounds_min": [0.0, 0.0, 0.0],
-            "bounds_max": [1.0, 1.0, 1.0],
-        },
-        "atom_mappings": {
-            "mode": SOURCE_KIND_EMPTY,
-            "complete": True,
-            "incomplete_operation_indices": [],
-            "mappings": [
-                {
-                    "mode": SOURCE_KIND_EMPTY,
-                    "operation_index": 0,
-                    "operation_kind": "identity",
-                    "complete": True,
-                    "atom_to_atom": [],
-                    "max_distance": 0.0,
-                    "unmatched_atoms": [],
-                    "entries": [],
-                }
-            ],
-        },
-    }
 
 
 def write_empty_viewer_json() -> Path:
@@ -230,95 +155,12 @@ def write_empty_viewer_json() -> Path:
     return EMPTY_VIEWER_JSON_PATH
 
 
-def atom_api_items(atoms: list[dict]) -> list[dict]:
-    return [
-        {
-            "index": atom["index"],
-            "element": atom["element"],
-            "frac": atom.get("frac"),
-            "frac_label": atom_frac_label(atom),
-            "cart": atom.get("cart"),
-            "asymmetric_index": atom.get("asymmetric_index"),
-            "default_color": atom_color(atom),
-        }
-        for atom in atoms
-    ]
 
 
-def atom_render_style_items(
-    render_data: dict,
-    *,
-    element_colors: dict | None = None,
-    atom_colors: dict | None = None,
-) -> list[dict]:
-    return [
-        {
-            "index": int(atom["index"]),
-            "color": atom_color(atom, element_colors=element_colors, atom_colors=atom_colors),
-            "radius": display_atom_radius(atom, render_data),
-        }
-        for atom in render_data.get("atoms", [])
-    ]
 
 
-def display_atom_api_items(
-    render_data: dict,
-    *,
-    display_mode: str,
-    cell_origin_mode: str,
-    include_boundary_images: bool = False,
-    element_hidden: dict | None = None,
-    atom_hidden: dict | None = None,
-) -> list[dict]:
-    items = []
-    for instance_id, item in enumerate(
-        display_atom_instances(
-            render_data,
-            display_mode=display_mode,
-            cell_origin_mode=cell_origin_mode,
-            include_boundary_images=include_boundary_images,
-        )
-    ):
-        atom = item["atom"]
-        if (element_hidden or {}).get(str(atom.get("element", ""))):
-            continue
-        if (atom_hidden or {}).get(str(atom.get("index", ""))):
-            continue
-        items.append(
-            {
-                "instance_id": instance_id,
-                "source_atom": int(atom["index"]),
-                "element": atom["element"],
-                "atomic_number": int(atom["atomic_number"]),
-                "cart": item["cart"],
-                "frac": np.asarray(atom["frac"], dtype=float) + item["display_shift_frac"]
-                if atom.get("frac") is not None else None,
-                "display_shift_cart": item["display_shift_cart"],
-                "is_primary_image": bool(item["is_primary_image"]),
-            }
-        )
-    return items
 
 
-def display_unit_cell_api_item(
-    render_data: dict,
-    *,
-    display_mode: str,
-    cell_origin_mode: str,
-) -> dict | None:
-    unit_cell = render_data.get("unit_cell")
-    if unit_cell is None:
-        return None
-    lattice = np.asarray(unit_cell["lattice"], dtype=float)
-    # Match the current PyVista browser view: Cell Range expands atom/symmetry
-    # display context, but the drawn reference unit cell itself remains the
-    # source cell.  Only the origin convention changes the cell placement.
-    lower, _ = display_fractional_bounds("source", cell_origin_mode)
-    shift = np.asarray([lower, lower, lower], dtype=float) @ lattice
-    return {
-        "vertices_cart": np.asarray(unit_cell["vertices_cart"], dtype=float) + shift,
-        "edges": unit_cell["edges"],
-    }
 
 
 def atom_motion_api_items(
@@ -491,55 +333,16 @@ def cartesian_operation_items(unit_cell: dict, W_frac, t_frac) -> dict:
     }
 
 
-def update_view_coordinate_state(render_data: dict, state: dict, update: dict) -> None:
-    """Attach Python-computed Cartesian camera inputs to shared browser state."""
-    unit_cell = render_data.get("unit_cell")
-    lattice = None if unit_cell is None else np.asarray(unit_cell["lattice"], dtype=float)
-
-    def vector(key: str) -> np.ndarray:
-        value = np.asarray(update.get(key), dtype=float)
-        if value.shape != (3,) or not np.all(np.isfinite(value)):
-            raise ValueError(f"{key} must contain three finite numbers")
-        return value
-
-    if "reset_view_request_id" in update:
-        state["reset_view_center_cart"] = display_scene_center(
-            render_data,
-            str(state.get("display_mode", "source")),
-            str(state.get("cell_origin_mode", "center")),
-        ).tolist()
-    if "view_center_request_id" in update:
-        center = vector("view_center_frac")
-        state["view_center_cart"] = (center if lattice is None else center @ lattice).tolist()
-    if "view_direction_request_id" in update:
-        if lattice is None:
-            raise ValueError("direction indices require a crystal unit cell")
-        direction = vector("view_direction_frac") @ lattice
-        if np.linalg.norm(direction) < 1e-10:
-            raise ValueError("view direction must not be zero")
-        state["view_direction_cart"] = (direction / np.linalg.norm(direction)).tolist()
-        state["indexed_view_center_cart"] = display_scene_center(
-            render_data,
-            str(state.get("display_mode", "source")),
-            str(state.get("cell_origin_mode", "center")),
-        ).tolist()
-    if "view_plane_request_id" in update:
-        if lattice is None:
-            raise ValueError("Miller indices require a crystal unit cell")
-        normal = np.linalg.inv(lattice) @ vector("view_plane_hkl")
-        if np.linalg.norm(normal) < 1e-10:
-            raise ValueError("plane normal must not be zero")
-        state["view_plane_normal_cart"] = (normal / np.linalg.norm(normal)).tolist()
-        state["indexed_view_center_cart"] = display_scene_center(
-            render_data,
-            str(state.get("display_mode", "source")),
-            str(state.get("cell_origin_mode", "center")),
-        ).tolist()
 
 
 def gif_bytes_from_data_urls(frames: list[str], frame_duration_ms: int) -> bytes:
     if not frames or len(frames) > 180:
         raise ValueError("GIF export requires between 1 and 180 frames")
+    # GIF stores a 16-bit delay in hundredths of a second. Do not silently
+    # accelerate long distance-based playback by clamping frames to one second.
+    frame_duration_ms = max(20, int(frame_duration_ms))
+    if frame_duration_ms > 655350:
+        raise ValueError("GIF frame duration exceeds the format limit")
     images = []
     try:
         for frame in frames:
@@ -558,7 +361,7 @@ def gif_bytes_from_data_urls(frames: list[str], frame_duration_ms: int) -> bytes
             format="GIF",
             save_all=True,
             append_images=images[1:],
-            duration=max(20, min(int(frame_duration_ms), 1000)),
+            duration=frame_duration_ms,
             loop=0,
             optimize=False,
         )
@@ -617,7 +420,7 @@ def puzzle_public_questions(
     """Public puzzle questions (correct answer withheld).
 
     The highlighted axis geometry is taken from the SAME per-operation
-    computation the analysis view uses (``symmetry_elements_response``), so the
+    computation the legacy quiz reveal uses (``symmetry_elements_response``), so the
     displayed axis coincides with the reveal animation. ``render_data["axes"]``
     can list several symmetry-equivalent parallel axes and the axis grouping may
     pick a different one than the operation actually acts on, which is what made
@@ -694,6 +497,13 @@ def normalize_example_catalog(loaded: dict) -> dict[str, list[dict]]:
                 # playable; only pass on counts we actually have.
                 item["puzzle_counts"] = {
                     key: int(counts.get(key, 0)) for key in PUZZLE_COUNT_KEYS
+                }
+            availability = raw.get("quiz_availability")
+            if isinstance(availability, dict):
+                # Playable quiz/difficulty pairs; absent means "check on load".
+                item["quiz_availability"] = {
+                    quiz: {level: bool((levels or {}).get(level)) for level in ("normal", "hard")}
+                    for quiz, levels in availability.items() if quiz in ("operation", "composition", "mapping", "point_group")
                 }
             if raw.get("error"):
                 item["error"] = str(raw["error"])
@@ -808,20 +618,67 @@ def make_handler(
     analysis_timeout_sec: float,
     default_display_mode: str,
     initial_app_mode: str = "select",
+    api2=None,
+    model_loads=None,
+    model_view=None,
 ) -> type[BaseHTTPRequestHandler]:
+    if model_loads is not None and (api2 is None or api2.session is not model_loads.session):
+        raise ValueError("API2 and ModelLoads must share one ModelSession")
+    if model_view is not None and (api2 is None or api2.session is not model_view.session):
+        raise ValueError("API2 and ModelView must share one ModelSession")
+    if model_loads is not None and model_view is not None:
+        model_loads.bind_view(model_view)
     # import_in_progress has to follow the loads that are actually running.  It
     # used to be a plain flag that a load set on arrival and cleared only if it
     # was still the current one, so a load discarded as stale left it set for
     # good and every later cell-setting change was refused.  shared_state is
     # replaced wholesale on a load, so the count lives outside it.
     loads_in_flight = {"count": 0}
+    cell_setting_cache = CellSettingCache()
+    from crystal_viewer.viewer.quiz_session import QuizSession
+    quiz_models = QuizSession(model_view.helpers) if model_view is not None else None
 
     class Handler(BaseHTTPRequestHandler):
+        _cell_setting_cache = cell_setting_cache
+
         def do_GET(self) -> None:
             parsed_url = urlparse(self.path)
             path = parsed_url.path
+            if path.startswith("/api/quiz/model/"):
+                self.send_api2_json(406, {"error": "unsupported_contract", "api_version": 2,
+                    "message": "Use POST with an API2 quiz request"})
+                return
+            quiz_request = model_view is not None and path.startswith("/api/quiz/")
+            if quiz_request:
+                path = "/api/"+path.removeprefix("/api/quiz/")
+            if path == "/static/view_api.js":
+                self.send_javascript_file(PROJECT_ROOT / "crystal_viewer" / "web" / "view_api.js")
+                return
+            version = parse_qs(parsed_url.query).get("api_version", ["1"])[0]
+            if quiz_request and version != "1":
+                self.send_api2_json(406, {"error": "unsupported_contract", "api_version": 1,
+                    "message": "The quiz uses its separate API1 state"})
+                return
+            if path.startswith("/api/") and api2 is not None and version == "1" and not quiz_request:
+                self.send_api2_json(406, {"error": "unsupported_contract", "api_version": 2})
+                return
+            if path.startswith("/api/") and version != "1":
+                if version == "2" and path == "/api/model":
+                    self.handle_api2(path, {"api_version": 2})
+                else:
+                    self.send_api2_json(406, {"error": "unsupported_contract", "api_version": 2,
+                        "message": "Use POST with an API2 JSON request"})
+                return
+            if path == "/static/playback_schedule.js":
+                self.send_javascript_file(PROJECT_ROOT / "crystal_viewer" / "web" / "playback_schedule.js")
+                return
+            if path == "/static/model_snapshot.js":
+                self.send_javascript_file(PROJECT_ROOT / "crystal_viewer" / "web" / "model_snapshot.js")
+                return
             if path == "/":
                 page = HTML.replace("__INITIAL_APP_MODE__", json.dumps(initial_app_mode))
+                if model_view is not None:
+                    page = page.replace('name="model-view" content="legacy"', 'name="model-view" content="api2"')
                 self.send_bytes(page.encode("utf-8"), content_type="text/html; charset=utf-8")
                 return
             if path == "/favicon.ico":
@@ -850,6 +707,9 @@ def make_handler(
                 module_path = PROJECT_ROOT / "crystal_viewer" / "web" / "browser_ui.js"
                 self.send_javascript_file(module_path)
                 return
+            if path == "/static/operation_math.js":
+                self.send_javascript_file(PROJECT_ROOT / "crystal_viewer" / "web" / "operation_math.js")
+                return
             if path == "/static/three_loader.js":
                 module_path = PROJECT_ROOT / "crystal_viewer" / "web" / "three_loader.js"
                 self.send_javascript_file(module_path)
@@ -861,6 +721,13 @@ def make_handler(
             if path == "/static/puzzle.js":
                 module_path = PROJECT_ROOT / "crystal_viewer" / "web" / "puzzle.js"
                 self.send_javascript_file(module_path)
+                return
+            if path == "/vendor/latin-modern-math/latinmodern-math.otf":
+                font_path = PROJECT_ROOT / "crystal_viewer" / "web" / "vendor" / "latin-modern-math" / "latinmodern-math.otf"
+                if not font_path.is_file():
+                    self.send_json_error("The bundled math font is missing", status=404)
+                    return
+                self.send_bytes(font_path.read_bytes(), content_type="font/otf")
                 return
             if path == "/vendor/three/three.module.js":
                 module_path = PROJECT_ROOT / "crystal_viewer" / "web" / "vendor" / "three" / "three.module.js"
@@ -965,9 +832,6 @@ def make_handler(
                         display_mode = str(shared_state.get("display_mode", "source"))
                         cell_origin_mode = str(shared_state.get("cell_origin_mode", "center"))
                         include_boundary_images = bool(shared_state.get("include_boundary_images", False))
-                        animation_boundary_mode = str(
-                            shared_state.get("animation_boundary_mode", "continuous")
-                        )
                     display_override = query.get("display_mode")
                     if display_override:
                         display_mode = str(display_override[0])
@@ -987,7 +851,7 @@ def make_handler(
                         display_mode=display_mode,
                         cell_origin_mode=cell_origin_mode,
                         include_boundary_images=include_boundary_images,
-                        animation_boundary_mode=animation_boundary_mode,
+                        repetitions=int(query.get("repetitions", [1])[0]),
                     )
                 except (TypeError, ValueError) as exc:
                     self.send_json_error(str(exc), status=400)
@@ -1003,9 +867,6 @@ def make_handler(
                     display_mode = str(shared_state.get("display_mode", "source"))
                     cell_origin_mode = str(shared_state.get("cell_origin_mode", "center"))
                     include_boundary_images = bool(shared_state.get("include_boundary_images", False))
-                    animation_boundary_mode = str(
-                        shared_state.get("animation_boundary_mode", "continuous")
-                    )
                 if not request:
                     self.send_json_error("No custom animation is active", status=404)
                     return
@@ -1013,7 +874,6 @@ def make_handler(
                     render_data, atom_mappings, request, improper_mode=improper_mode,
                     display_mode=display_mode, cell_origin_mode=cell_origin_mode,
                     include_boundary_images=include_boundary_images,
-                    animation_boundary_mode=animation_boundary_mode,
                 ))
                 return
             if path == "/api/symmetry_elements":
@@ -1055,6 +915,7 @@ def make_handler(
                     improper_mode = str(shared_state.get("improper_mode", "auto"))
                     display_mode = str(shared_state.get("display_mode", "source"))
                     cell_origin_mode = str(shared_state.get("cell_origin_mode", "center"))
+                    repetitions = max(1, min(120, int(shared_state.get("operation_repetitions", 1))))
                 operation = operation_by_index(render_data.get("operations", []), operation_index)
                 mapping = selected_mapping(atom_mappings, operation_index)
                 paths = {}
@@ -1076,15 +937,29 @@ def make_handler(
                         display_mode=display_mode,
                         cell_origin_mode=cell_origin_mode,
                     )
-                body = {
-                    "operation_index": operation_index,
-                    "entries": atom_motion_api_items(
-                        render_data,
-                        atom_mappings,
-                        operation_index,
-                        paths=paths,
-                    ),
-                }
+                entries = atom_motion_api_items(
+                    render_data,
+                    atom_mappings,
+                    operation_index,
+                    paths=paths,
+                )
+                if repetitions > 1 and operation is not None:
+                    matrix = np.asarray(operation["matrix_cart"])
+                    translation = np.asarray(operation["translation_cart"])
+                    unit_cell = render_data.get("unit_cell")
+                    inverse = None if unit_cell is None else np.linalg.inv(np.asarray(unit_cell["lattice"]))
+                    targets = {entry["source_atom"]: entry.get("target_atom")
+                               for entry in (mapping or {}).get("entries", [])}
+                    for entry in entries:
+                        target = np.asarray(entry["start_cart"], dtype=float)
+                        target_index = entry["source_atom"]
+                        for _ in range(repetitions):
+                            target = matrix @ target + translation
+                            target_index = targets.get(target_index)
+                        entry.update(target_cart=target.tolist(),
+                                     target_frac=None if inverse is None else (target @ inverse).tolist(),
+                                     target_atom=target_index, stages=[])
+                body = {"operation_index": operation_index, "entries": entries}
                 self.send_json(body)
                 return
             if path == "/api/puzzle/axis_orders":
@@ -1183,6 +1058,16 @@ def make_handler(
                     body = dict(shared_state)
                 self.send_json(body)
                 return
+            if path == "/api/cell_placement":
+                with state_lock:
+                    selected = shared_state.get("selected_atoms", [])
+                    enabled = (session.source_kind == "crystal" and len(selected) == 1
+                               and str(shared_state.get("scope", "")).startswith("selected"))
+                    body = {"choices": placement_choices(
+                        session.placement_payload["render_data"], int(selected[0])
+                    ) if enabled else []}
+                self.send_json(body)
+                return
             if path == "/api/examples":
                 self.send_json(example_catalog())
                 return
@@ -1199,7 +1084,12 @@ def make_handler(
                 self.send_json_error(f"unexpected server error: {exc}", status=500)
 
         def dispatch_post(self) -> None:
-            path = urlparse(self.path).path
+            parsed_url = urlparse(self.path)
+            path = parsed_url.path
+            model_quiz_request = path.startswith("/api/quiz/model/")
+            quiz_request = model_view is not None and path.startswith("/api/quiz/")
+            if quiz_request and not model_quiz_request:
+                path = "/api/"+path.removeprefix("/api/quiz/")
             length = int(self.headers.get("Content-Length", "0"))
             if length > MAX_REQUEST_BODY_BYTES:
                 self.send_json_error("request body is too large", status=413)
@@ -1208,6 +1098,28 @@ def make_handler(
                 payload = json.loads(self.rfile.read(length) or b"{}")
             except json.JSONDecodeError as exc:
                 self.send_json_error(f"invalid JSON request body: {exc}", status=400)
+                return
+
+            query_version = parse_qs(parsed_url.query).get("api_version", [None])[0]
+            if path.startswith("/api/") and query_version is not None:
+                if (query_version not in ("1", "2") or not isinstance(payload, dict) or
+                        ("api_version" in payload and str(payload["api_version"]) != query_version)):
+                    self.send_api2_json(406, {"error": "unsupported_contract", "api_version": 2})
+                    return
+                payload = {**payload, "api_version": int(query_version)}
+            if model_quiz_request:
+                self.handle_model_quiz(path, payload)
+                return
+            if quiz_request and (not isinstance(payload, dict) or payload.get("api_version", 1) != 1):
+                self.send_api2_json(406, {"error": "unsupported_contract", "api_version": 1,
+                    "message": "The quiz uses its separate API1 state"})
+                return
+            if path.startswith("/api/") and api2 is not None and not quiz_request and (
+                    not isinstance(payload, dict) or payload.get("api_version", 1) == 1):
+                self.send_api2_json(406, {"error": "unsupported_contract", "api_version": 2})
+                return
+            if isinstance(payload, dict) and payload.get("api_version", 1) != 1:
+                self.handle_api2(path, payload)
                 return
 
             if path == "/api/reset_analysis":
@@ -1274,6 +1186,9 @@ def make_handler(
                 check_result.update(visuals)
                 # store result for PyVista highlight
                 with state_lock:
+                    if session.render_data is not render_data:
+                        self.send_json_error("The coordinate system changed; check the custom operation again", status=400)
+                        return
                     shared_state["custom_op_result"] = check_result
                 self.send_json(check_result)
                 return
@@ -1409,6 +1324,9 @@ def make_handler(
                     check_result = compose_operation_indices(render_data, operation_indices, tolerance)
                 if "error" not in check_result and payload.get("store_custom_result"):
                     with state_lock:
+                        if session.render_data is not render_data:
+                            self.send_json_error("The coordinate system changed; compose the operations again", status=400)
+                            return
                         shared_state["custom_op_result"] = check_result
                 self.send_json(check_result)
                 return
@@ -1450,6 +1368,10 @@ def make_handler(
 
             if path == "/api/cell_setting":
                 self.handle_cell_setting(payload)
+                return
+
+            if path == "/api/cell_placement":
+                self.handle_cell_placement(payload)
                 return
 
             if path != "/api/state":
@@ -1615,6 +1537,65 @@ def make_handler(
             finally:
                 self.release_load_request()
 
+        def handle_cell_placement(self, payload: dict) -> None:
+            try:
+                key = str(payload.get("placement", ""))
+                with state_lock:
+                    selected = tuple(shared_state.get("selected_atoms", []))
+                    if (shared_state.get("import_in_progress") or session.source_kind != "crystal"
+                            or (key != "initial" and (len(selected) != 1
+                                or not str(shared_state.get("scope", "")).startswith("selected")))):
+                        raise ValueError("Select exactly one atom in a loaded crystal")
+                    canonical = session.placement_payload
+                    current = session.payload
+                    reload_id = shared_state.get("reload_request_id")
+                    atom_index = None
+                    target = None
+                    if key == "initial":
+                        origin = np.zeros(3)
+                    else:
+                        atom_index = int(selected[0])
+                        choices = placement_choices(canonical["render_data"], atom_index)
+                        choice = next((item for item in choices if item["key"] == key), None)
+                        if choice is None:
+                            raise ValueError("Unknown placement")
+                        target = payload.get("target") if key == "custom" else choice["target"]
+                        target = np.asarray(target, dtype=float)
+                        if (target.shape != (3,) or not np.all(np.isfinite(target))
+                                or np.any(target < 0) or np.any(target > 1)):
+                            raise ValueError("Enter three fractional coordinates between 0 and 1")
+                        atom = next(a for a in canonical["render_data"]["atoms"] if a["index"] == atom_index)
+                        origin = np.asarray(atom["frac"]) - target
+                    base_payload = session.base_payload
+                    json_path = session.json_path
+                converted = translated_payload(canonical, origin)
+                new_session = ViewerSession(json_path, converted, base_payload=base_payload,
+                                            placement_payload=canonical)
+                with state_lock:
+                    if (session.payload is not current or shared_state.get("reload_request_id") != reload_id
+                            or tuple(shared_state.get("selected_atoms", [])) != selected
+                            or (key != "initial" and not str(shared_state.get("scope", "")).startswith("selected"))
+                            or shared_state.get("import_in_progress")):
+                        raise ValueError("Structure or selection changed; try placement again")
+                    session.replace_from(new_session)
+                    shared_state.update({
+                        "cell_origin_mode": "corner", "cell_origin_frac": origin.tolist(),
+                        "cell_placement": key, "cell_placement_atom": atom_index if key != "initial" else None,
+                        "cell_placement_target": target.tolist() if isinstance(target, np.ndarray) else target,
+                        "reload_request_id": int(reload_id or 0) + 1,
+                        "playing": False, "reset": True, "active_mode": "standard",
+                        "custom_op_result": None, "custom_op_animate": None,
+                        "custom_op_check_id": None, "clear_custom_check": True,
+                        "summaries_ready": True,
+                    })
+                    if key == "initial" and payload.get("reset_settings") is True:
+                        shared_state["display_mode"] = "source"
+                    body = {"ok": True, "operations": session.operation_summary_items,
+                            "atoms": atom_api_items(session.atoms), "state": dict(shared_state)}
+                self.send_json(body)
+            except (ValueError, TypeError, StopIteration) as exc:
+                self.send_json_error(str(exc), status=400)
+
         def handle_cell_setting(self, payload: dict) -> None:
             mode = str(payload.get("cell_setting_mode") or payload.get("mode") or "native")
             try:
@@ -1623,35 +1604,44 @@ def make_handler(
                         raise RuntimeError("A structure is still loading. Wait for it to finish before changing cell setting.")
                     base_payload = session.base_payload
                     current_payload = session.payload
+                    placement_payload = session.placement_payload
                     current_json_path = session.json_path
+                    current_reload_id = shared_state.get("reload_request_id")
                     preserved_status = shared_state.get("import_status", "")
-                source_payload = base_payload if mode == "native" else current_payload
-                converted_payload = export_cell_setting_json_worker(
-                    source_payload,
-                    cell_setting=mode,
-                    tolerance_cart=tolerance_cart,
-                    indent=indent,
-                    timeout_sec=analysis_timeout_sec,
-                    # A primitive P cell or a conventional P/Bravais cell can
-                    # legitimately keep its atom count.  It is still a valid
-                    # request to standardize and label that cell setting.
-                    require_distinct=False,
-                )
+                source_payload = base_payload if mode == "native" else placement_payload
+                key = conversion_key(source_payload, mode, tolerance_cart)
+                with state_lock:
+                    converted_payload = cell_setting_cache.get(key)
+                if converted_payload is None:
+                    converted_payload = read_precomputed_cell(
+                        PROJECT_ROOT, base_payload, source_payload, mode, tolerance_cart, key,
+                    )
+                if converted_payload is None:
+                    converted_payload = export_cell_setting_json_worker(
+                        source_payload,
+                        cell_setting=mode,
+                        tolerance_cart=tolerance_cart,
+                        indent=indent,
+                        timeout_sec=analysis_timeout_sec,
+                        # Equivalent P cells still allow standardization via API.
+                        require_distinct=False,
+                    )
                 new_session = ViewerSession(current_json_path, converted_payload, base_payload=base_payload)
                 with state_lock:
                     if shared_state.get("import_in_progress"):
                         raise RuntimeError("A structure started loading before cell setting conversion finished.")
-                    if session.json_path != current_json_path or session.payload is not current_payload:
+                    if (session.json_path != current_json_path or session.payload is not current_payload
+                            or shared_state.get("reload_request_id") != current_reload_id):
                         raise RuntimeError("The loaded structure changed before cell setting conversion finished.")
                     preserved = {
                         **preserved_render_state(shared_state),
+                        "cell_origin_mode": "corner",
                         "cell_setting_mode": mode,
                         "reload_request_id": shared_state.get("reload_request_id"),
                         "import_status": preserved_status,
                         "json_path": shared_state.get("json_path", str(current_json_path)),
                         "pyvista_enabled": bool(shared_state.get("pyvista_enabled", False)),
                     }
-                    session.replace_from(new_session)
                     next_state = initial_render_state(
                         converted_payload,
                         initial_operation=None,
@@ -1662,6 +1652,8 @@ def make_handler(
                     next_state["structure_loaded"] = True
                     next_state["import_status"] = preserved_status
                     next_state["json_path"] = str(current_json_path)
+                    session.replace_from(new_session)
+                    cell_setting_cache.put(key, converted_payload)
                     shared_state.clear()
                     shared_state.update(next_state)
                     body = {
@@ -1691,20 +1683,11 @@ def make_handler(
                     self.send_json(body)
                     return
                 preserved = {
-                    "speed": shared_state.get("speed", 1.0),
-                    "projection_mode": shared_state.get("projection_mode", "perspective"),
-                    "background_mode": shared_state.get("background_mode", "dark"),
-                    "legend_visible": shared_state.get("legend_visible", False),
-                    "cell_origin_mode": shared_state.get("cell_origin_mode", "center"),
-                    "cell_setting_mode": "native",
-                    "improper_mode": shared_state.get("improper_mode", "auto"),
-                    # A range suitable for the previous structure can create a
-                    # very large atom scene after loading a denser structure.
-                    "display_mode": "source",
                     "reload_request_id": shared_state.get("reload_request_id"),
                     "pyvista_enabled": bool(shared_state.get("pyvista_enabled", False)),
                 }
                 session.replace_from(new_session)
+                cell_setting_cache.clear()
                 next_state = initial_render_state(
                     new_payload,
                     initial_operation=None,
@@ -1754,6 +1737,208 @@ def make_handler(
                     shared_state["summaries_ready"] = True
 
             threading.Thread(target=worker, daemon=True).start()
+
+        def handle_model_quiz(self, path, payload):
+            if not isinstance(payload, dict) or type(payload.get("api_version")) is not int or payload["api_version"] != 2:
+                self.send_api2_json(406, dict(error="unsupported_contract", api_version=2))
+                return
+            from crystal_viewer.viewer.model_session import ModelConflict
+            try:
+                if quiz_models is None:
+                    raise ModelConflict("quiz model host unavailable")
+                json.dumps(payload, allow_nan=False)
+                endpoint = path.removeprefix("/api/quiz/model/")
+                if endpoint in ("open_example", "composition_options", "mapping_options"):
+                    def loader():
+                        source = resolve_example_path(payload.get("kind"), str(payload.get("path", "")))
+                        output = default_json_output_path(source, EXAMPLE_JSON_DIR)
+                        # Like the browser analysis picker, these are recorded
+                        # source inputs, not a signature-validated conversion cache.
+                        return output, json.loads(output.read_text(encoding="utf-8"))
+                    if endpoint == "composition_options":
+                        body = quiz_models.composition_options(loader)
+                    elif endpoint == "mapping_options":
+                        body = quiz_models.mapping_options(loader)
+                    else:
+                        body = quiz_models.load(loader, identity=payload if "model_id" in payload else None,
+                                                quiz_type=payload.get("quiz_type", "mapping"), difficulty=payload.get("difficulty", "normal"))
+                elif endpoint == "export_gif":
+                    with quiz_models.lock:
+                        active = quiz_models.active
+                        if active is None or active.quiz_type != "operation":
+                            raise ModelConflict("quiz GIF unavailable")
+                        request = active.view.request()
+                        request["plan_id"] = payload.get("plan_id")
+                        playback = quiz_models.dispatch("animation_path", dict(payload, plan_request=request))["playback"]
+                        if playback["plan_id"] != payload.get("plan_id") or playback["schedule"]["schedule_id"] != payload.get("schedule_id"):
+                            raise ModelConflict("quiz GIF plan or references changed")
+                        rendered = gif_bytes_from_data_urls(payload["frames"], int(payload["frame_duration_ms"]))
+                    self.send_bytes(rendered, content_type="image/gif")
+                    return
+                else:
+                    body = quiz_models.dispatch(endpoint, payload)
+                self.send_api2_json(200, body)
+            except Exception as exc:
+                self.send_api2_json(409 if isinstance(exc, ModelConflict) else 400,
+                    dict(error="state_mismatch" if isinstance(exc, ModelConflict) else "invalid_request",
+                         message=str(exc), api_version=2))
+
+        def handle_api2(self, path: str, payload: dict) -> None:
+            if type(payload.get("api_version")) is not int or payload["api_version"] != 2:
+                self.send_api2_json(406, {"error": "unsupported_contract", "api_version": 2})
+                return
+            if api2 is None:
+                self.send_api2_json(409, {"error": "model_not_prepared", "api_version": 2})
+                return
+            try:
+                json.dumps(payload, allow_nan=False)
+            except (TypeError, ValueError) as exc:
+                self.send_api2_json(400, dict(error="invalid_request", message=str(exc), api_version=2))
+                return
+            if path.startswith("/api/view/") and model_view is not None:
+                endpoint = path.removeprefix("/api/view/")
+                if endpoint in ("load_json", "open_example", "import_cif", "import_molecule", "cell_setting", "reset_analysis") or (endpoint == "cell_placement" and "placement" in payload):
+                    if endpoint == "cell_placement" and "atom_index" not in payload:
+                        with model_view.lock:
+                            model_view.sync()
+                            selected = model_view.state["selected_atoms"]
+                            if len(selected) == 1:
+                                payload["atom_index"] = selected[0]
+                    self.handle_api2_load("/api/"+endpoint, payload, browser=True)
+                    return
+                try:
+                    if (endpoint == "state" and "cell_origin_mode" in payload.get("update", {})
+                            and model_view.snapshot is not None and model_view.snapshot.representatives_json):
+                        update = dict(payload["update"])
+                        mode = update.pop("cell_origin_mode")
+                        body = model_loads.reference_cell(payload, mode, update=update)
+                        self.send_api2_json(200, model_view.bundle(body))
+                        return
+                    if endpoint in ("animation_path", "atom_motion", "symmetry_elements", "powers") and model_view.snapshot is not None and "plan_request" not in payload:
+                        raise ValueError("snapshot-bound plan_request required")
+                    if endpoint == "custom_animation_path" and "expected_plan_id" not in payload:
+                        raise ValueError("checked Custom plan ID required")
+                    if endpoint == "examples":
+                        body = example_catalog()
+                    elif endpoint == "bootstrap":
+                        body = model_view.bundle()
+                    elif endpoint == "export_gif":
+                        from crystal_viewer.viewer.model_session import ModelConflict
+                        with model_view.lock:
+                            model_view.session.snapshot(payload)
+                            endpoint_path = "custom_animation_path" if model_view.state["active_mode"] == "custom" else "animation_path"
+                            playback = model_view.dispatch(endpoint_path, payload)["playback"]
+                            if playback["plan_id"] != payload.get("plan_id") or playback["schedule"]["schedule_id"] != payload.get("schedule_id"):
+                                raise ModelConflict("GIF plan or references changed")
+                            rendered = gif_bytes_from_data_urls(payload["frames"], int(payload["frame_duration_ms"]))
+                            model_view.session.snapshot(payload)
+                        self.send_bytes(rendered, content_type="image/gif")
+                        return
+                    else:
+                        body = model_view.dispatch(endpoint, payload)
+                    self.send_api2_json(200, body)
+                except Exception as exc:
+                    from crystal_viewer.viewer.model_session import ModelConflict
+                    self.send_api2_json(409 if isinstance(exc, ModelConflict) else 400,
+                        dict(error="state_mismatch" if isinstance(exc, ModelConflict) else "invalid_request", message=str(exc), api_version=2))
+                return
+            load_paths = {"/api/load_json", "/api/open_example", "/api/import_cif", "/api/import_molecule",
+                          "/api/cell_setting", "/api/cell_placement", "/api/reset_analysis"}
+            if path in load_paths and model_loads is not None:
+                self.handle_api2_load(path, payload)
+                return
+            status, body = api2.dispatch(path, payload)
+            self.send_api2_json(status, body)
+
+        def handle_api2_load(self, path: str, payload: dict, *, browser=False) -> None:
+            # These opt-in paths reuse only source analysis/conversion workers.
+            # No legacy ViewerSession, summary worker or UI state is published.
+            from crystal_viewer.viewer.model_session import ModelConflict
+            from crystal_viewer.viewer.model_policy import CorrectionLimitError
+            try:
+                if path == "/api/cell_setting":
+                    source_snapshot = model_loads.session.snapshot(payload)
+                    source_context = json.loads(source_snapshot.load_context_json)
+                    def converter(source, mode):
+                        key = conversion_key(source, mode, tolerance_cart)
+                        prepared = read_precomputed_cell(PROJECT_ROOT, source_context["base_payload"],
+                            source, mode, tolerance_cart, key)
+                        if prepared is not None:
+                            from crystal_viewer.viewer.cell_frame import attach_frame_witness
+                            attach_frame_witness(source, prepared, symprec=.001,
+                                angle_tolerance=5., cell_setting=mode)
+                            return prepared
+                        return prepare_crystal_input_worker(source_payload=source, cell_setting=mode,
+                            timeout_sec=analysis_timeout_sec)
+                    body = model_loads.cell_setting(payload,
+                        str(payload.get("cell_setting_mode", "native")), converter, tolerance_cart=tolerance_cart)
+                elif path == "/api/cell_placement":
+                    body = model_loads.cell_placement(payload, str(payload.get("placement", "")),
+                        atom_index=payload.get("atom_index"), target=payload.get("target"))
+                elif path == "/api/reset_analysis":
+                    body = model_loads.reset(payload)
+                else:
+                    provenance = dict(entrypoint=path, export_mapping_tolerance_A=tolerance_cart)
+                    def loader():
+                        if path == "/api/load_json":
+                            candidate = (json_dir / str(payload["path"])).resolve()
+                            if not candidate.is_relative_to(json_dir.resolve()) or candidate.suffix.lower() != ".json":
+                                raise ValueError("JSON path must be inside json_dir")
+                            return candidate, json.loads(candidate.read_text(encoding="utf-8"))
+                        if path == "/api/open_example":
+                            kind = normalize_source_kind(str(payload.get("kind", "")))
+                            input_path = resolve_example_path(kind, str(payload.get("path", "")))
+                            provenance.update(filename=input_path.name, content=input_path.read_text(encoding="utf-8"))
+                            output = default_json_output_path(input_path, EXAMPLE_JSON_DIR)
+                            if browser:
+                                # Opening an example must not regenerate recorded data.
+                                return output, json.loads(output.read_text(encoding="utf-8"))
+                            cached = cached_export_json_path(input_path, output, mode=kind)
+                            if cached is not None:
+                                return cached
+                            worker = prepare_crystal_input_worker if kind == SOURCE_KIND_CRYSTAL else prepare_molecule_input_worker
+                            return input_path, worker(input_path, timeout_sec=analysis_timeout_sec)
+                        molecule = path == "/api/import_molecule"
+                        filename = str(payload.get("filename") or ("uploaded_molecule.xyz" if molecule else "uploaded_structure.cif"))
+                        content = str(payload.get("content", ""))
+                        if not content.strip():
+                            raise ValueError("empty uploaded structure")
+                        from inspect import Parameter, signature
+                        from crystal_viewer.source_inputs import crystal_input_from_cif, molecule_input_from_file
+                        analysis = molecule_input_from_file if molecule else crystal_input_from_cif
+                        provenance.update(filename=filename, content=content,
+                            analysis_defaults={name: item.default for name, item in signature(analysis).parameters.items()
+                                if item.kind == Parameter.KEYWORD_ONLY and item.default is not Parameter.empty})
+                        input_path = (write_uploaded_molecule if molecule else write_uploaded_cif)(filename, content)
+                        worker = prepare_molecule_input_worker if molecule else prepare_crystal_input_worker
+                        return input_path, worker(input_path, timeout_sec=analysis_timeout_sec)
+                    body = model_loads.load(loader, provenance=provenance,
+                        identity=payload if "model_id" in payload else None)
+                if (browser and path == "/api/cell_placement" and payload.get("placement") == "initial"
+                        and payload.get("reset_settings") is True):
+                    with model_view.lock:
+                        identity = {key: body[key] for key in ("model_id", "source_model_id", "frame_id", "structure_revision", "math_version")}
+                        model_view.dispatch("state", dict(identity,
+                            update=dict(display_mode="source", range_highlight=False)))
+                self.send_api2_json(200, model_view.bundle(body) if browser else body)
+            except ModelConflict as exc:
+                self.send_api2_json(409, {"error": "state_mismatch", "message": str(exc), "api_version": 2})
+            except CorrectionLimitError as exc:
+                self.send_api2_json(400, {"error": "correction_limit_exceeded", "message": str(exc),
+                    "correction_policy": exc.report, "api_version": 2})
+            except Exception as exc:
+                self.send_api2_json(400, {"error": "model_preparation_failed", "message": str(exc), "api_version": 2})
+
+        def send_api2_json(self, status: int, body: dict) -> None:
+            encoded = json.dumps(to_jsonable(body), allow_nan=False).encode("utf-8")
+            try:
+                self.send_response(status)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(encoded)))
+                self.end_headers()
+                self.wfile.write(encoded)
+            except (BrokenPipeError, ConnectionResetError):
+                return
 
         def send_json(self, body: dict) -> None:
             self.send_bytes(
@@ -1850,6 +2035,40 @@ def worker_command(script_name: str) -> list[str]:
     return [sys.executable, str(Path(__file__).with_name(script_name))]
 
 
+def prepare_crystal_input_worker(input_path=None, *, source_payload=None, cell_setting=None,
+                                 timeout_sec=None):
+    """Run API2 crystal acquisition in isolation; all products are temporary."""
+    return _prepare_model_input_worker(input_path, source_payload=source_payload,
+        cell_setting=cell_setting, timeout_sec=timeout_sec)
+
+
+def prepare_molecule_input_worker(input_path, *, timeout_sec=None):
+    return _prepare_model_input_worker(input_path, mode="molecule", timeout_sec=timeout_sec)
+
+
+def _prepare_model_input_worker(input_path=None, *, source_payload=None, cell_setting=None,
+                                mode="crystal", timeout_sec=None):
+    if ((input_path is None) == (source_payload is None) or
+            (source_payload is not None) != (cell_setting is not None)):
+        raise ValueError("crystal file or a source payload with cell setting required")
+    with tempfile.TemporaryDirectory(prefix="symmetry_model_input_") as directory:
+        directory = Path(directory)
+        if source_payload is not None:
+            input_path = directory / "source.json"
+            input_path.write_text(json.dumps(source_payload, allow_nan=False), encoding="utf-8")
+        output = directory / "input.json"
+        command = [*worker_command("prepare_model_input.py"), str(input_path), "--output", str(output), "--mode", mode]
+        if cell_setting is not None:
+            command += ["--cell-setting", cell_setting]
+        try:
+            result = subprocess.run(command, capture_output=True, text=True, timeout=timeout_sec)
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError(f"{mode} input analysis timed out") from exc
+        if result.returncode != 0:
+            raise RuntimeError((result.stderr or result.stdout or f"{mode} input preparation failed").strip())
+        return json.loads(output.read_text(encoding="utf-8"))
+
+
 def export_analysis_to_json_worker(
     input_path: Path,
     *,
@@ -1861,6 +2080,7 @@ def export_analysis_to_json_worker(
 ) -> Path:
     command = [
         *worker_command("export_analysis_json.py"),
+        "--legacy-contract",
         str(input_path),
         "--mode",
         mode,
@@ -1964,6 +2184,7 @@ def export_cell_setting_json_worker(
     indent: int,
     timeout_sec: float | None = None,
     require_distinct: bool = False,
+    include_frame_witness: bool = False,
 ) -> dict:
     with tempfile.NamedTemporaryFile(
         mode="w",
@@ -1978,6 +2199,7 @@ def export_cell_setting_json_worker(
     output_path = Path(tempfile.gettempdir()) / f"symmetry_view_cell_setting_{time.monotonic_ns()}.json"
     command = [
         *worker_command("export_cell_setting_json.py"),
+        "--legacy-contract",
         str(base_path),
         "--cell-setting",
         cell_setting,
@@ -1990,6 +2212,8 @@ def export_cell_setting_json_worker(
     ]
     if require_distinct:
         command.append("--require-distinct")
+    if include_frame_witness:
+        command.append("--include-frame-witness")
     try:
         try:
             result = subprocess.run(
@@ -2089,16 +2313,6 @@ def resolve_viewer_json_path(
     raise ValueError(f"Unsupported input file type: {input_path.suffix}. Use .json, .cif, or .xyz.")
 
 
-def default_starter_path() -> Path:
-    for path in DEFAULT_STARTER_PATHS:
-        if path.exists():
-            return path
-    raise FileNotFoundError(
-        "No input_path was provided and no starter JSON was found. "
-        "Provide a JSON/CIF path, or create exports/json/halite.json."
-    )
-
-
 def build_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Web symmetry viewer for exported JSON, CIF, or XYZ structures."
@@ -2107,7 +2321,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
         "input_path",
         type=Path,
         nargs="?",
-        help="Exported JSON, or a CIF/XYZ file to analyze and export first.",
+        help="Exported JSON, or a CIF/XYZ file to analyze for the shared model.",
     )
     parser.add_argument("--operation", type=int, default=None, help="Initial operation index.")
     parser.add_argument("--host", default="127.0.0.1")
@@ -2186,21 +2400,25 @@ def main() -> int:
     args = build_argument_parser().parse_args()
 
     input_path = args.input_path if args.input_path is not None else write_empty_viewer_json()
-    json_path = resolve_viewer_json_path(
-        input_path,
-        json_output=args.json_output,
-        json_dir=args.json_dir,
-        tolerance_cart=args.tolerance_cart,
-        indent=args.indent,
-    )
-
-    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    if input_path.suffix.lower() in (".cif", ".xyz") and args.json_output is None:
+        json_path = input_path
+        worker = prepare_crystal_input_worker if input_path.suffix.lower() == ".cif" else prepare_molecule_input_worker
+        payload = worker(input_path, timeout_sec=args.analysis_timeout_sec)
+    else:
+        # Explicit full-JSON export retains its CLI contract.
+        json_path = resolve_viewer_json_path(
+            input_path, json_output=args.json_output, json_dir=args.json_dir,
+            tolerance_cart=args.tolerance_cart, indent=args.indent)
+        payload = json.loads(json_path.read_text(encoding="utf-8"))
     display_mode = "expanded_quarter" if args.expanded else "source"
-    session = ViewerSession(json_path, payload)
+    # The legacy host is reserved for explicit API1 compatibility. Analysis, including native,
+    # does not prepare legacy summaries, mappings or paths from its source input.
+    legacy_payload = empty_viewer_payload()
+    session = ViewerSession(json_path, legacy_payload)
 
     state_lock = threading.Lock()
     shared_state = initial_render_state(
-        payload,
+        legacy_payload,
         initial_operation=args.operation,
         display_mode=display_mode,
     )
@@ -2208,6 +2426,23 @@ def main() -> int:
     shared_state["reload_request_id"] = 0
     shared_state["json_path"] = str(json_path)
     shared_state["pyvista_enabled"] = args.pyvista_enabled
+
+    from crystal_viewer.viewer.api2 import API2
+    from crystal_viewer.viewer.model_session import ModelSession
+    from crystal_viewer.viewer.model_loading import ModelLoads
+    from crystal_viewer.viewer.model_view import ModelView
+    models = ModelSession(cell_representatives=True)
+    api2 = API2(models)
+    model_view = ModelView(api2, sys.modules[__name__], display_mode=display_mode,
+                          initial_operation=args.operation, pyvista_enabled=args.pyvista_enabled)
+    model_loads = ModelLoads(models, analysis_context={"host": "normal_http", "historical_analysis_conditions": "unknown"},
+        mapping_tolerance_A=.1, operation_match_tolerance=.01, model_view=model_view)
+    if payload.get("structure_loaded", True) and payload["render_data"]["atoms"]:
+        try:
+            model_loads.load(lambda: (json_path, payload), provenance={"entrypoint": "startup_json"})
+        except ValueError as exc:
+            model_view.state["import_status"] = str(exc)
+            print(f"Model preparation failed: {exc}", file=sys.stderr)
 
     handler = make_handler(
         session,
@@ -2220,6 +2455,7 @@ def main() -> int:
         analysis_timeout_sec=args.analysis_timeout_sec,
         default_display_mode=display_mode,
         initial_app_mode=args.mode or "select",
+        api2=api2, model_loads=model_loads, model_view=model_view,
     )
     example_catalog()
     server = start_server(args.host, args.port, handler)
@@ -2232,26 +2468,20 @@ def main() -> int:
     try:
         if args.pyvista_enabled:
             try:
-                from crystal_viewer.viewer.pyvista_controller import BrowserControlledViewer
+                from crystal_viewer.viewer.model_pyvista import ModelPyVistaViewer
             except ImportError as exc:
                 # PyVista is an optional extra, so --with-pyvista is the one flag
                 # that can fail on an otherwise complete install.
                 print(
                     f"--with-pyvista needs the optional PyVista renderer, which is not installed ({exc}).\n"
-                    "Restart without --with-pyvista to use the Web viewer.\n",
+                    "Install it with:\n"
+                    "  .venv/bin/python -m pip install -r requirements-pyvista.txt\n"
+                    "The Web viewer at the URL above works without it.",
                     file=sys.stderr,
                 )
                 return 1
 
-            app = BrowserControlledViewer(
-                json_path,
-                display_mode=display_mode,
-                initial_operation=shared_state["operation_index"],
-                scope=shared_state["scope"],
-                shared_state=shared_state,
-                state_lock=state_lock,
-                viewer_session=session,
-            )
+            app = ModelPyVistaViewer(model_view)
             app.show()
         else:
             while True:

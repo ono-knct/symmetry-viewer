@@ -4,7 +4,7 @@ import numpy as np
 
 from crystal_viewer.geometry import normalize, signed_rotation_angle_from_matrix
 from crystal_viewer.viewer.animation_context import display_equivalent_operation_context
-from crystal_viewer.viewer.animation_path import build_operation_path, synchronize_compound_path_phases
+from crystal_viewer.viewer.animation_path import build_operation_path, decomposition_elements, synchronize_compound_path_phases
 from crystal_viewer.viewer.symmetry_elements import display_symmetry_elements
 
 
@@ -17,6 +17,8 @@ def build_custom_animation_paths(
     cell_origin_mode: str = "center",
     improper_mode: str = "auto",
 ) -> dict[int, dict]:
+    # Custom honours the entered operations rather than Standard's display mode.
+    improper_mode = "auto"
     unit_cell = render_data.get("unit_cell")
     if unit_cell is None:
         return {}
@@ -128,7 +130,9 @@ def custom_sequence_step_contexts(render_data, atom_mappings, items, lattice, *,
     return contexts
 
 
-def build_sequence_paths(render_data, atom_indices, contexts, unit_cell_only, improper_mode):
+def build_sequence_paths(render_data, atom_indices, contexts, unit_cell_only, improper_mode, *, align_affine_elements=False):
+    if align_affine_elements:
+        contexts = [affine_sequence_context(context) for context in contexts]
     paths = {}
     for atom in render_data.get("atoms", []):
         if int(atom["index"]) not in atom_indices:
@@ -146,20 +150,54 @@ def build_sequence_paths(render_data, atom_indices, contexts, unit_cell_only, im
                     current, target, operation, axis=context["axis"], plane=context["plane"], center=context["center"],
                     angle_override=context["angle_override"], improper_mode=improper_mode,
                     source_kind=str(render_data.get("metadata", {}).get("mode", "")),
+                    render_data=render_data,
                 )
             segments.append(segment)
             current = target
         path = {"type": "sequential", "segments": segments,
-                "segment_elements": [{"axes": [c["axis"]] if c["axis"] else [],
-                                      "planes": [c["plane"]] if c["plane"] else [],
-                                      "centers": [c["center"]] if c["center"] else [],
-                                      "glide_translation_cart": (
-                                          segment.get("translation") if segment.get("type") == "glide" else None
-                                      ),
-                                      "label": c["label"]}
+                "segment_elements": [sequence_elements(c, segment, improper_mode, render_data)
                                      for c, segment in zip(contexts, segments)]}
         if unit_cell_only:
             path["unit_cell_only"] = True
         paths[int(atom["index"])] = path
     synchronize_compound_path_phases(paths)
     return paths
+
+
+def sequence_elements(context, segment, mode, render_data):
+    axis, plane, center = decomposition_elements(
+        context["operation"], context["axis"], context["plane"], context["center"], mode, render_data,
+    )
+    kind = str(context["operation"].get("kind", ""))
+    glide_translation = segment.get("translation") if "glide" in kind else None
+    if "glide" in kind and segment.get("type") == "sequential":
+        translation = segment["segments"][-1]
+        glide_translation = np.asarray(translation["target"]) - translation["start"]
+    if mode in ("rotoinversion", "rotoreflection") and (kind in ("mirror", "inversion") or "glide" in kind or any(w in kind for w in ("roto", "improper"))):
+        if mode == "rotoinversion":
+            plane = None
+            if kind == "inversion":
+                axis = None
+        else:
+            center = None
+            if kind == "mirror" or "glide" in kind:
+                axis = None
+    return {"axes": [axis] if axis is not None else [],
+            "planes": [plane] if plane is not None else [],
+            "centers": [center] if center is not None else [],
+            "glide_translation_cart": glide_translation, "label": context["label"]}
+
+
+def affine_sequence_context(context):
+    """A sequence retains the specified affine translation, including Z³.
+
+    Standard's displayed element may be a lattice-equivalent copy. Re-anchor
+    it to the actual affine transform before composing repeated applications.
+    """
+    matrix = np.asarray(context["matrix"], dtype=float)
+    point = np.linalg.lstsq(np.eye(3) - matrix, np.asarray(context["translation"], dtype=float), rcond=1e-5)[0]
+    result = dict(context)
+    for key in ("axis", "plane", "center"):
+        if context.get(key) is not None:
+            result[key] = {**context[key], "point_cart": point}
+    return result

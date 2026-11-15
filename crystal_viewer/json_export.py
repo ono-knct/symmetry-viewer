@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from dataclasses import is_dataclass
 from pathlib import Path
 from typing import Any
@@ -28,22 +27,6 @@ def export_payload(
         "render_data": render_data_to_dict(render_data),
         "atom_mappings": atom_mapping_set_to_dict(atom_mappings),
     }
-
-
-def write_export_json(
-    path: str | Path,
-    render_data: RenderData,
-    atom_mappings: AtomMappingSet,
-    *,
-    source_kind: str,
-    indent: int = 2,
-) -> None:
-    source_kind = normalize_source_kind(source_kind)
-    payload = export_payload(render_data, atom_mappings, source_kind=source_kind)
-    Path(path).write_text(
-        json.dumps(payload, ensure_ascii=False, indent=indent),
-        encoding="utf-8",
-    )
 
 
 def render_data_to_dict(data: RenderData) -> dict[str, Any]:

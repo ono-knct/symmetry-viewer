@@ -1,0 +1,6 @@
+# Optional desktop renderer for tools/view_json_server.py --with-pyvista.
+# The browser viewer does not require these packages.
+# Install with: .venv/bin/python -m pip install -r requirements-pyvista.txt
+-r requirements.txt
+pyvista>=0.43
+imageio>=2.37

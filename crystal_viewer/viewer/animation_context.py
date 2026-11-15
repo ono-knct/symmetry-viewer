@@ -100,6 +100,7 @@ def animation_paths(
             translation_override=translation_override,
             improper_mode=improper_mode,
             source_kind=str(render_data.get("metadata", {}).get("mode", "")),
+            render_data=render_data,
         )
     synchronize_compound_path_phases(paths)
     return paths

@@ -275,12 +275,3 @@ def atom_color(
 
 def normalize_hex_color(value) -> str | None:
     return _normalize_hex_color_value(value)
-
-
-def color_to_rgb(color: str) -> tuple[float, float, float]:
-    normalized = normalize_hex_color(color) or DEFAULT_ATOM_COLOR
-    return (
-        int(normalized[1:3], 16) / 255.0,
-        int(normalized[3:5], 16) / 255.0,
-        int(normalized[5:7], 16) / 255.0,
-    )

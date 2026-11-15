@@ -1,16 +1,23 @@
-# symmetry-viewer v1.0.0
+# symmetry-viewer 更新内容
 
-結晶・分子の対称性を学ぶための3D教材です。解析モードと4種類のクイズを備え、結晶16種・分子19種を収録しています。
+結晶・分子の対称性を学ぶ3D教材です。結晶16種・分子19種を収録しています。
 
-## ダウンロード
+## 主な変更
 
-| パソコン | ダウンロード |
-|---|---|
-| Windows 10 / 11（64ビット） | [Windows版（ZIP）](https://github.com/ono-knct/symmetry-viewer/releases/download/v1.0.0/symmetry-viewer-windows-x64.zip) |
-| Linux（x86_64、glibc 2.27以上） | [Linux版（tar.gz）](https://github.com/ono-knct/symmetry-viewer/releases/download/v1.0.0/symmetry-viewer-linux-x86_64.tar.gz) |
+- ブラウザで収録例を利用できるWeb版を追加しました。
+- 解析画面の対称操作の表示と、操作の組み合わせを確認するCustomモードの説明を改善しました。
+- 解析モードとクイズモードを切り替えた際の選択状態や再生位置の扱いを改善しました。
+- 水の教材モデルの結合長を揃え、対称性の説明と収録データを整合させました。
 
-Windows版はZIPを展開して `symmetry-viewer.exe` を開きます。Linux版は展開したフォルダで `./symmetry-viewer` を実行します。Pythonなどの追加インストールは不要です。
+## 配布版の起動
 
-[使い方](https://github.com/ono-knct/symmetry-viewer/blob/v1.0.0/docs/usage.md) · [構造データの出典](https://github.com/ono-knct/symmetry-viewer/blob/v1.0.0/examples/SOURCES.md)
+1. Windowsでは `symmetry-viewer-windows-x64.zip`、Linuxでは `symmetry-viewer-linux-x86_64.tar.gz` をダウンロードして展開します。
+2. Windowsでは `symmetry-viewer.exe` を開きます。Linuxでは展開先の端末で `./symmetry-viewer` を実行します。
+3. ブラウザに表示される画面で構造を選択します。詳しい操作・終了方法は配布物の `README.txt` を参照してください。
 
-下の `Source code` は開発者向けです。
+## 利用上の制約
+
+- WebGLに対応したブラウザが必要です。初回の読み込みやセルの切り替えには時間がかかる場合があります。
+- Web版は収録例を対象としています。手元のCIF・XYZファイルを取り込む場合は配布版を利用してください。
+- クイズから解析画面へ戻る際は、読み込みの完了後に再生位置を操作してください。読み込み中の変更は元の位置へ戻ることがあります。
+- 収録分子は対称性の学習を目的とした理想化モデルです。構造の出典・加工内容・利用条件はソースの `examples/SOURCES.md` を参照してください。
