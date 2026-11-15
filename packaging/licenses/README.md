@@ -58,15 +58,22 @@ applicable to their source distribution and the build tools used.
 | `VCRUNTIME140.dll`, `VCRUNTIME140_1.dll` | Byte-identical to the pinned python-build-standalone archive above |
 | `MSVCP140.dll` (14.40.33810.0) | Byte-identical to the runtime in the NumPy 2.5.2 Windows wheel |
 | Renamed `msvcp140-*.dll` in `numpy.libs` and `pandas.libs` | Byte-identical to the runtime in the NumPy 2.5.2 and pandas 3.0.5 Windows wheels |
-| `ucrtbase.dll`, `api-ms-win-*.dll` (10.0.26100.1742) | Microsoft UCRT components collected by the Windows build; the exact source directory is not recorded in the ZIP |
+| `ucrtbase.dll`, `api-ms-win-*.dll` (10.0.26100.1742) | All 44 files are byte-identical to the x64 UCRT files in the official Windows SDK 10.0.26100.1742 redistributable directory |
 
 The comparison uses the CPython archive hash pinned in `build_windows.ps1` and
 the wheel hashes published by PyPI. It identifies matching files, not a grant
 of redistribution rights. Check the applicable terms when rebuilding or
 redistributing, including the Visual Studio/Build Tools and Windows SDK terms.
 Microsoft documents local deployment of UCRT from the Windows SDK's
-`Redist/ucrt/DLLs` directory. For a release, retain the collection paths and
-confirm that the UCRT files came from a redistributable location.
+`Redist/ucrt/DLLs` directory. The inspected package was compared against
+[Microsoft.Windows.SDK.CPP 10.0.26100.1742](https://www.nuget.org/packages/Microsoft.Windows.SDK.CPP/10.0.26100.1742),
+under `c/Redist/10.0.26100.0/ucrt/DLLs/x64/`. All 44 included UCRT files match
+byte for byte. The original build-time source paths were not recorded; this
+comparison establishes file identity with the redistributable originals.
+Package hashes and per-file hashes are recorded in
+[windows/ucrt-provenance.json](windows/ucrt-provenance.json).
+The SDK package points to the [Windows SDK license](https://aka.ms/WinSDKLicenseURL).
+A new build must be checked again if its runtime files differ from these records.
 
 Official references:
 
